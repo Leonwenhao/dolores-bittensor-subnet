@@ -1,0 +1,64 @@
+task_id: bad_reference_fails_005
+title: Quote-aware codec for the accounts ledger
+domain: python_function
+prompt: 'Implement format_record(fields) and parse_record(text) in ledger_quo_comma_dollar.py
+  for the accounts ledger. Fields are joined by the comma '','', a column fence marking
+  each tabular flatten. Any field holding that delimiter or a quote is emitted by
+  wrapping it in the dollar ''$'', a cash vault used as coin ingot, doubling an interior
+  quote. Round-trip law: parse_record(format_record(fields)) == fields for every list
+  of fields, covering empty fields, quote-only fields, and adjacent specials. Fields
+  read like ''debit'', ''credit'', ''balance''.'
+starter_files:
+  ledger_quo_comma_dollar.py: "def format_record(fields):\n    parts = []\n    for\
+    \ field in fields:\n        if \"$\" in field or \",\" in field:  # PROBE-DROP\n\
+    \            body = field.replace(\"$\", \"$$\")  # PROBE-DROP\n            parts.append(\"\
+    $\" + body + \"$\")  # PROBE-DROP\n            continue  # PROBE-DROP\n      \
+    \  parts.append(field)\n    return \",\".join(parts)\n\n\ndef parse_record(text):\n\
+    \    return text.split(\",\")\n"
+reference_files:
+  ledger_quo_comma_dollar.py: "def intentionally_wrong_reference(*args, **kwargs):\n\
+    \    return None\n"
+public_tests:
+  tests/test_public.py: "from ledger_quo_comma_dollar import format_record, parse_record\n\
+    \n\ndef test_format_plain_fields():\n    assert format_record([\"debit\", \"credit\"\
+    ]) == \"debit,credit\"\n\n\ndef test_round_trip_with_delimiter_in_field():\n \
+    \   fields = [\"debit,credit\", \"balance\"]\n    assert parse_record(format_record(fields))\
+    \ == fields\n"
+hidden_tests:
+  tests/test_hidden.py: "from hypothesis import given, settings\nfrom hypothesis import\
+    \ strategies as st\n\nfrom ledger_quo_comma_dollar import format_record, parse_record\n\
+    \nALPHABET = \"ab01,$\"\n\n\ndef test_empty_field_round_trips():\n    fields =\
+    \ [\"\", \"debit\", \"\"]\n    assert parse_record(format_record(fields)) == fields\n\
+    \n\ndef test_quote_only_field_round_trips():\n    fields = [\"$$\", \"credit\"\
+    ]\n    assert parse_record(format_record(fields)) == fields\n\n\ndef test_adjacent_specials_round_trip():\n\
+    \    fields = [\",$,\", \"balance\"]\n    assert parse_record(format_record(fields))\
+    \ == fields\n\n\n@settings(derandomize=True, database=None, max_examples=50)\n\
+    @given(st.lists(st.text(alphabet=ALPHABET, max_size=6), min_size=1, max_size=5))\n\
+    def test_round_trip_property(fields):\n    assert parse_record(format_record(fields))\
+    \ == fields\n"
+constraints:
+  timeout_seconds: 10
+  memory_mb: 512
+descriptors:
+  task_type: parser_roundtrip
+  concepts:
+  - family:parser_roundtrip
+  - archetype:quoted_fields
+  - target_band:core
+  - gen:v3
+  - theme:ledger
+  - delim:comma
+  - special:dollar
+  - codec:ledger_quo_comma_dollar
+  - knob_property_tests:1
+  estimated_difficulty: medium
+  required_tools:
+  - python
+  - pytest
+lineage:
+  parent_task_id: null
+  proposer_type: template
+  proposer_model: parser_roundtrip
+metadata:
+  license: MIT
+  created_at: '2026-07-07T15:28:53.845102Z'

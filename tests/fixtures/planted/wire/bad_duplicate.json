@@ -1,0 +1,57 @@
+{
+  "declared_difficulty": "medium",
+  "family": "parser_roundtrip",
+  "package": {
+    "constraints": {
+      "memory_mb": 512,
+      "timeout_seconds": 10
+    },
+    "descriptors": {
+      "concepts": [
+        "family:parser_roundtrip",
+        "archetype:quoted_fields",
+        "target_band:core",
+        "gen:v3",
+        "theme:ledger",
+        "delim:comma",
+        "special:dollar",
+        "codec:ledger_quo_comma_dollar",
+        "knob_property_tests:1"
+      ],
+      "estimated_difficulty": "medium",
+      "required_tools": [
+        "python",
+        "pytest"
+      ],
+      "task_type": "parser_roundtrip"
+    },
+    "domain": "python_function",
+    "hidden_tests": {
+      "tests/test_hidden.py": "from hypothesis import given, settings\nfrom hypothesis import strategies as st\n\nfrom ledger_quo_comma_dollar import format_record, parse_record\n\nALPHABET = \"ab01,$\"\n\n\ndef test_empty_field_round_trips():\n    fields = [\"\", \"debit\", \"\"]\n    assert parse_record(format_record(fields)) == fields\n\n\ndef test_quote_only_field_round_trips():\n    fields = [\"$$\", \"credit\"]\n    assert parse_record(format_record(fields)) == fields\n\n\ndef test_adjacent_specials_round_trip():\n    fields = [\",$,\", \"balance\"]\n    assert parse_record(format_record(fields)) == fields\n\n\n@settings(derandomize=True, database=None, max_examples=50)\n@given(st.lists(st.text(alphabet=ALPHABET, max_size=6), min_size=1, max_size=5))\ndef test_round_trip_property(fields):\n    assert parse_record(format_record(fields)) == fields\n"
+    },
+    "lineage": {
+      "parent_task_id": null,
+      "proposer_model": "parser_roundtrip",
+      "proposer_type": "template"
+    },
+    "metadata": {
+      "created_at": "2026-07-07T15:28:53.845102Z",
+      "license": "MIT"
+    },
+    "prompt": "Implement format_record(fields) and parse_record(text) in ledger_quo_comma_dollar.py for the accounts ledger. Fields are joined by the comma ',', a column fence marking each tabular flatten. Any field holding that delimiter or a quote is emitted by wrapping it in the dollar '$', a cash vault used as coin ingot, doubling an interior quote. Round-trip law: parse_record(format_record(fields)) == fields for every list of fields, covering empty fields, quote-only fields, and adjacent specials. Fields read like 'debit', 'credit', 'balance'.",
+    "public_tests": {
+      "tests/test_public.py": "from ledger_quo_comma_dollar import format_record, parse_record\n\n\ndef test_format_plain_fields():\n    assert format_record([\"debit\", \"credit\"]) == \"debit,credit\"\n\n\ndef test_round_trip_with_delimiter_in_field():\n    fields = [\"debit,credit\", \"balance\"]\n    assert parse_record(format_record(fields)) == fields\n"
+    },
+    "reference_files": {
+      "ledger_quo_comma_dollar.py": "def format_record(fields):\n    parts = []\n    for field in fields:\n        if \"$\" in field or \",\" in field:  # PROBE-DROP\n            body = field.replace(\"$\", \"$$\")  # PROBE-DROP\n            parts.append(\"$\" + body + \"$\")  # PROBE-DROP\n            continue  # PROBE-DROP\n        parts.append(field)\n    return \",\".join(parts)\n\n\ndef parse_record(text):\n    fields = []\n    buf = []\n    index = 0\n    in_quotes = False\n    while index < len(text):\n        ch = text[index]\n        if ch == \"$\":  # PROBE-DROP\n            doubled = index + 1 < len(text) and text[index + 1] == \"$\"  # PROBE-DROP\n            if in_quotes and doubled:  # PROBE-DROP\n                buf.append(\"$\")  # PROBE-DROP\n                index += 2  # PROBE-DROP\n                continue  # PROBE-DROP\n            in_quotes = not in_quotes  # PROBE-DROP\n            index += 1  # PROBE-DROP\n            continue  # PROBE-DROP\n        if ch == \",\" and not in_quotes:\n            fields.append(\"\".join(buf))\n            buf = []\n        else:\n            buf.append(ch)\n        index += 1\n    fields.append(\"\".join(buf))\n    return fields\n"
+    },
+    "starter_files": {
+      "ledger_quo_comma_dollar.py": "def format_record(fields):\n    parts = []\n    for field in fields:\n        if \"$\" in field or \",\" in field:  # PROBE-DROP\n            body = field.replace(\"$\", \"$$\")  # PROBE-DROP\n            parts.append(\"$\" + body + \"$\")  # PROBE-DROP\n            continue  # PROBE-DROP\n        parts.append(field)\n    return \",\".join(parts)\n\n\ndef parse_record(text):\n    return text.split(\",\")\n"
+    },
+    "task_id": "bad_duplicate_002",
+    "title": "Quote-aware codec for the accounts ledger"
+  },
+  "package_hash": "e31b22807272f53a5756299991653891bc4e6bb72d2e6c0c2ff3ec0b30e0d7ce",
+  "schema_version": "dolores-subnet-v0",
+  "task_id": "bad_duplicate_002"
+}

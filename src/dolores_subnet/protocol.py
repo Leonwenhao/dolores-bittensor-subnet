@@ -8,6 +8,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from dolores_subnet.config import SCHEMA_VERSION as CONFIG_SCHEMA_VERSION
+
+SCHEMA_VERSION = CONFIG_SCHEMA_VERSION
+
 
 def canonical_json(payload: dict[str, Any]) -> str:
     """Serialize payload deterministically for hash commitments."""
@@ -51,6 +55,42 @@ class TaskSubmission:
 
 
 @dataclass(frozen=True)
+class WireSubmission:
+    """Dict-serializable Dolores task package submitted over the subnet wire."""
+
+    schema_version: str
+    task_id: str
+    package_hash: str
+    package: dict[str, Any]
+    family: str
+    declared_difficulty: str
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> WireSubmission:
+        return cls(
+            schema_version=str(payload["schema_version"]),
+            task_id=str(payload["task_id"]),
+            package_hash=str(payload["package_hash"]),
+            package=dict(payload["package"]),
+            family=str(payload.get("family", "")),
+            declared_difficulty=str(payload.get("declared_difficulty", "")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "task_id": self.task_id,
+            "package_hash": self.package_hash,
+            "package": self.package,
+            "family": self.family,
+            "declared_difficulty": self.declared_difficulty,
+        }
+
+    def commitment(self) -> str:
+        return sha256_text(canonical_json(self.to_dict()))
+
+
+@dataclass(frozen=True)
 class ValidationScore:
     """Validator result for one submission."""
 
@@ -66,4 +106,3 @@ class ValidationScore:
         if not self.valid:
             return 0.0
         return max(0.0, min(1.0, self.score))
-

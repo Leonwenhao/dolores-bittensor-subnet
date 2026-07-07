@@ -61,7 +61,8 @@ rehearsable, ≤8-minute demo from committed state today. M7 packaging work
 **Ready for public testnet?** **No — and not solely for the expected reason.**
 Beyond test TAO (H3, no evidence the Discord request has been made) and the
 human chain steps (H4/H6), the chain layer (`SubtensorChain`, metagraph
-discovery, `set_weights`, receipt capture) does not exist yet, and three
+discovery, `set_weights`, receipt capture) did not exist at this review point
+(later superseded by M6 chain-readiness code), and three
 wire-hardening findings (spoofable `infra_error`, no response-size cap,
 quota default 10,000) must be fixed before exposing the validator to
 non-cooperating miners.
@@ -81,7 +82,7 @@ leaks secrets; the safety boundaries held everywhere we probed.
 | **M3** offline demo floor | **complete** | Empty determinism diff `m3_a` vs `m3_b` (verified first-hand); `report.py --replay-check` → `REPLAY OK`; export leak test `test_bridge_mock.py:78-97`; `local_loop.py`/`dolores_bridge.py` deleted; tag `demo-floor-v0` at `71b5066`; diary with leaderboard + timing | stale strings in `egg-info/` trip the documented grep gate verbatim (F-15) | regenerate/ignore egg-info |
 | **M4** wire integration | **partial** | Real axon/dendrite run: `work/m4_wire/` + `work/m4_wire_kill/` artifacts with real ss58s, `containerized=true`, genuine dendrite failure message; `wire.py:12` (`DoloresTaskSynapse(bt.Synapse)`); wire preflight ×3 PASS (this session); diary `2026-07-08-m4-wire.md` | F-01, F-04, F-05, F-06, F-07 below | fix unreachable semantics, add serialization test, commit, update Deviations Appendix |
 | **M5** localnet rehearsal | **not started** (waivable) | no `work/m5/`, no `SubtensorChain`, no metagraph discovery | expected — off critical path | waive in diary or defer until chain layer exists |
-| **M6** public testnet | **blocked (correctly)** | zero extrinsic code (grep: no `set_weights` in src/neurons/scripts); `weight_result.mode` hardcoded `"fallback"` (`epoch.py:108`); `configs/testnet.json` public-only, `netuid: null`; mainnet guard `config.py:90-106` | chain layer unbuilt; H3 was later completed with 10.0 test TAO | build chain seam behind the M6 human gate |
+| **M6** public testnet | **blocked (correctly)** | At review time: zero extrinsic code and `configs/testnet.json` public-only, `netuid: null`; mainnet guard `config.py:90-106` | H3 was later completed with 10.0 test TAO; chain-readiness code was later added behind gates | build/use chain seam behind the M6 human gate; no public receipt yet |
 | **M7** demo packaging | **not started** | no `docs/hackerhouse/demo-script.md`; `README.md:65` still lists wire mode as pending; no rehearsal transcript | plan §7.2 template paths are wrong (F-09) | author demo-script with corrected `subnet_archive/` paths; rewrite README; timed rehearsal |
 
 **Direct answers to the three posed questions:**

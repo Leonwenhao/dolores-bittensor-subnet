@@ -240,6 +240,33 @@ def chain_reachability_check(cfg: SubnetConfig) -> tuple[str, str]:
     return result("PASS", f"{cfg.network} block={block}")
 
 
+def chain_readiness_check(cfg: SubnetConfig, *, substrate: object | None = None) -> tuple[str, str]:
+    if not cfg.mode.requires_chain:
+        return result("SKIP", f"{cfg.mode.value} mode has no chain readiness")
+    if cfg.netuid is None:
+        return result("SKIP", "netuid unset; subnet readiness checks skipped")
+    if cfg.network is None:
+        return result("FAIL", "chain mode has no network")
+    try:
+        from dolores_subnet.chain import SubtensorChain
+
+        chain = SubtensorChain(
+            network=cfg.network,
+            netuid=cfg.netuid,
+            wallet_name=cfg.wallet_name,
+            wallet_hotkey=cfg.wallet_hotkey,
+            publish="dry-run",
+            substrate=substrate,
+        )
+        state = chain.preflight()
+    except Exception as exc:  # noqa: BLE001
+        return result("FAIL", f"{cfg.network} netuid={cfg.netuid}: {exc}")
+    detail = json.dumps(state, sort_keys=True, default=str)
+    if state.get("mode") == "error":
+        return result("FAIL", detail)
+    return result("PASS", detail)
+
+
 def build_checks(cfg: SubnetConfig) -> list[Check]:
     checks = [
         Check("python", python_version_check),
@@ -280,8 +307,10 @@ def build_checks(cfg: SubnetConfig) -> list[Check]:
     checks.append(Check("network allowlist", lambda: network_allowlist_check(cfg)))
     if cfg.mode.requires_chain:
         checks.append(Check("chain reachability", lambda: chain_reachability_check(cfg)))
+        checks.append(Check("chain readiness", lambda: chain_readiness_check(cfg)))
     else:
         checks.append(Check("chain reachability", lambda: result("SKIP", f"{cfg.mode.value} mode")))
+        checks.append(Check("chain readiness", lambda: result("SKIP", f"{cfg.mode.value} mode")))
     return checks
 
 
@@ -311,6 +340,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--wallet-name", dest="wallet_name_alias", default=None)
     parser.add_argument("--wallet-hotkey", dest="wallet_hotkey_alias", default=None)
     parser.add_argument("--network", default=None)
+    parser.add_argument("--netuid", type=int, default=None)
     return parser
 
 
@@ -324,6 +354,7 @@ def main() -> int:
         wallet_name=wallet_name,
         wallet_hotkey=wallet_hotkey,
         network=args.network,
+        netuid=args.netuid,
     )
     return run_preflight(cfg)
 

@@ -1430,9 +1430,10 @@ The implementation uses `src/dolores_subnet/wire.py` for the Bittensor
 `bt.Synapse` subclass plus local axon/dendrite helpers instead of the original
 `synapse.py` filename. `src/dolores_subnet/chain.py` now exists as the explicit
 non-signing chain seam with `ChainClient` and `NullChain`. Real
-`SubtensorChain`/`set_weights` code remains deferred to M5/M6 and still requires
-STOP-LEON approval before any signing or public testnet action. Approval trail:
-Fable conformance review dated 2026-07-08 and the M4 hardening diary.
+`SubtensorChain`/`set_weights` code was deferred to M5/M6 at that point and
+still requires STOP-LEON approval before any signing or public testnet action.
+This is superseded by the M6 chain-readiness entry below. Approval trail: Fable
+conformance review dated 2026-07-08 and the M4 hardening diary.
 
 ### 2026-07-08 — M4 unreachable and oversized wire response semantics
 
@@ -1463,9 +1464,23 @@ and `epochs/epoch_<N>/weights_epoch_<N>.json`.
 H3 funding is now complete: the `dolores-test` coldkey has 10.0 test TAO free
 and 0.0 staked on `--network test`. This does not make M6 complete. No public
 subnet is registered, no validator permit exists, no on-chain weights have been
-set, and real `SubtensorChain`/`set_weights` code remains intentionally
-unimplemented. The old subnet-creation cost wording is superseded by the current
+set. The old subnet-creation cost wording is superseded by the current
 read-only command `btcli subnet burn-cost --network test`; M7 observed
 `1.0000 τ`, but the burn cost is dynamic and must be re-queried immediately
 before any STOP-LEON H4/H6 public-chain action. Subnet creation also carries the
 14,400-block (~2-day) per-account reuse/rate-limit warning.
+
+### 2026-07-08 — M6 chain-readiness layer implemented without extrinsics
+
+`src/dolores_subnet/chain.py` now includes the real chain seam:
+`SubtensorChain`, a private `_Substrate` facade, read-only preflight,
+metagraph hotkey-to-UID mapping, dry-run weight payload receipts, and a
+live-capable `set_weights` path behind four gates. The live path requires
+client allowance via `--allow-extrinsics`, `DOLORES_ALLOW_EXTRINSICS=1`, CLI
+`--chain live`, and the typed confirmation string `I-AM-LEON-AND-I-APPROVE`;
+otherwise it records
+`error/extrinsics_not_allowed` and does not call `set_weights`. `NullChain`
+keeps the original fallback record. Chain receipts are written separately as
+`chain_receipt_epoch_<N>.json`, while deterministic weight artifacts keep only
+a stable receipt reference. No public-chain write, registration, stake,
+transfer, or `set_weights` action was executed in this pass.

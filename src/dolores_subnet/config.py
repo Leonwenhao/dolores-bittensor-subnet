@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from enum import StrEnum
@@ -26,6 +27,7 @@ DEFAULT_VERIFIER_IMAGE = "dolores-verifier-pytest:0.1.0"
 DEFAULT_WALLET_NAME = "dolores-test"
 DEFAULT_WALLET_HOTKEY = "validator"
 DEFAULT_AXON_PORTS = (8091, 8092)
+TESTNET_CONFIG_PATH = REPO_ROOT / "configs" / "testnet.json"
 
 SAFE_CHAIN_NETWORKS = frozenset(
     {
@@ -129,6 +131,42 @@ def verifier_defaults(mode: Mode) -> tuple[str, str]:
     return "docker", "generated"
 
 
+def resolve_netuid(
+    mode: str | Mode,
+    requested: int | str | None = None,
+    *,
+    env_value: str | None = None,
+    config_path: Path = TESTNET_CONFIG_PATH,
+) -> int | None:
+    """Resolve netuid from CLI/env/config without inventing a default."""
+
+    parsed = parse_mode(mode)
+    if requested is not None:
+        return _parse_netuid(requested, source="argument")
+    if env_value:
+        return _parse_netuid(env_value, source="BT_NETUID")
+    if parsed is not Mode.TESTNET or not config_path.exists():
+        return None
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"cannot read {config_path}: {exc}") from exc
+    value = data.get("netuid")
+    if value is None:
+        return None
+    return _parse_netuid(value, source=str(config_path))
+
+
+def _parse_netuid(value: int | str, *, source: str) -> int:
+    try:
+        netuid = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"{source} netuid must be an integer: {value!r}") from exc
+    if netuid < 0:
+        raise ConfigError(f"{source} netuid must be non-negative: {netuid}")
+    return netuid
+
+
 @dataclass(frozen=True)
 class SubnetConfig:
     """Local runtime configuration shared by scripts, neurons, and tests."""
@@ -145,6 +183,7 @@ class SubnetConfig:
     backend: str = "local"
     pipeline_mode: str = "fixture"
     network: str | None = None
+    netuid: int | None = None
     max_package_bytes: int = MAX_PACKAGE_BYTES
     max_response_bytes: int = MAX_RESPONSE_BYTES
     quota: int = DEFAULT_QUOTA
@@ -164,6 +203,7 @@ class SubnetConfig:
         wallet_name: str | None = None,
         wallet_hotkey: str | None = None,
         network: str | None = None,
+        netuid: int | str | None = None,
     ) -> SubnetConfig:
         parsed_mode = parse_mode(mode or os.environ.get("DOLORES_SUBNET_MODE"))
         backend, pipeline_mode = verifier_defaults(parsed_mode)
@@ -175,6 +215,11 @@ class SubnetConfig:
             resolved_work = root / resolved_work
         archive_dir = resolved_work / "subnet_archive"
         resolved_network = resolve_network(parsed_mode, network or os.environ.get("BT_NETWORK"))
+        resolved_netuid = resolve_netuid(
+            parsed_mode,
+            requested=netuid,
+            env_value=os.environ.get("BT_NETUID"),
+        )
         return cls(
             mode=parsed_mode,
             repo_root=root,
@@ -192,6 +237,7 @@ class SubnetConfig:
             backend=backend,
             pipeline_mode=pipeline_mode,
             network=resolved_network,
+            netuid=resolved_netuid,
             wallet_name=wallet_name
             or os.environ.get("BT_WALLET_NAME", DEFAULT_WALLET_NAME),
             wallet_hotkey=wallet_hotkey

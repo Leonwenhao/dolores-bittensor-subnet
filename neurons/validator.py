@@ -13,6 +13,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from dolores_subnet import archive  # noqa: E402
 from dolores_subnet.bridge import validate_submission  # noqa: E402
+from dolores_subnet.chain import LIVE_CONFIRMATION, SubtensorChain, build_chain_client  # noqa: E402
 from dolores_subnet.config import DEFAULT_QUOTA, Mode, SubnetConfig, parse_mode  # noqa: E402
 from dolores_subnet.epoch import run_epoch  # noqa: E402
 from dolores_subnet.gates import GateContext  # noqa: E402
@@ -30,6 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--wallet.name", dest="wallet_name", default="dolores-test")
     parser.add_argument("--wallet.hotkey", dest="wallet_hotkey", default="validator")
+    parser.add_argument("--network", default=None)
+    parser.add_argument("--netuid", type=int, default=None)
+    parser.add_argument("--chain", choices=["off", "dry-run", "live"], default="off")
+    parser.add_argument("--allow-extrinsics", action="store_true")
+    parser.add_argument("--confirm-live", default="")
     return parser
 
 
@@ -38,12 +44,8 @@ def main() -> int:
     mode = parse_mode(args.mode)
     if mode is Mode.WIRE:
         return run_wire(args)
-    if mode not in {Mode.MOCK, Mode.OFFLINE}:
-        print(
-            f"mode {mode.value} requires chain support and is not implemented yet",
-            file=sys.stderr,
-        )
-        return 2
+    if mode in {Mode.LOCALNET, Mode.TESTNET}:
+        return run_chain(args, mode)
     if args.submissions is None:
         print("--submissions is required for the M2 offline validator path", file=sys.stderr)
         return 2
@@ -110,6 +112,88 @@ def run_wire(args: argparse.Namespace) -> int:
     for hotkey, weight in sorted(result.weights.items()):
         print(f"{hotkey} weight={weight:.6f} epoch_score={result.epoch_scores.get(hotkey, 0):.6f}")
     return 0
+
+
+def run_chain(args: argparse.Namespace, mode: Mode) -> int:
+    import bittensor as bt
+
+    from dolores_subnet.wire import MinerEndpoint, parse_miner_endpoints, query_miners
+
+    cfg = SubnetConfig.from_env(
+        mode=mode,
+        work_dir=args.work,
+        wallet_name=args.wallet_name,
+        wallet_hotkey=args.wallet_hotkey,
+        network=args.network,
+        netuid=args.netuid,
+    )
+    confirmation = _live_confirmation(args, cfg)
+    chain_client = build_chain_client(
+        cfg,
+        publish=args.chain,
+        allow_extrinsics=args.allow_extrinsics,
+        confirmation=confirmation,
+    )
+    wallet = bt.Wallet(name=cfg.wallet_name, hotkey=cfg.wallet_hotkey)
+    if args.miner_endpoints:
+        endpoints = parse_miner_endpoints(
+            args.miner_endpoints,
+            default_coldkey=wallet.coldkeypub.ss58_address,
+        )
+    else:
+        if not isinstance(chain_client, SubtensorChain):
+            print(
+                "--miner-endpoints is required for chain modes when --chain off",
+                file=sys.stderr,
+            )
+            return 2
+        endpoints = [
+            MinerEndpoint(
+                host=str(item["host"]),
+                port=int(item["port"]),
+                hotkey=str(item["hotkey"]),
+                uid=int(item["uid"]),
+                coldkey=str(item.get("coldkey", wallet.coldkeypub.ss58_address)),
+            )
+            for item in chain_client.miner_endpoints()
+        ]
+        if not endpoints:
+            print("no miner axons discovered from metagraph", file=sys.stderr)
+            return 2
+
+    miners = query_miners(
+        wallet=wallet,
+        endpoints=endpoints,
+        epoch_id=args.epoch,
+        quota=args.quota,
+        timeout=args.timeout,
+        max_response_bytes=cfg.max_response_bytes,
+    )
+    result = run_epoch(
+        cfg,
+        miners,
+        epoch_id=args.epoch,
+        quota=args.quota,
+        chain_client=chain_client,
+    )
+    print(f"weights_artifact={result.artifact_path}")
+    for hotkey, weight in sorted(result.weights.items()):
+        print(f"{hotkey} weight={weight:.6f} epoch_score={result.epoch_scores.get(hotkey, 0):.6f}")
+    return 0
+
+
+def _live_confirmation(args: argparse.Namespace, cfg: SubnetConfig) -> str:
+    if args.chain != "live":
+        return ""
+    if args.confirm_live:
+        return str(args.confirm_live)
+    if not sys.stdin.isatty():
+        return ""
+    prompt = (
+        f"Type {LIVE_CONFIRMATION} to allow live set_weights on "
+        f"network={cfg.network} netuid={cfg.netuid}: "
+    )
+    return input(prompt)
 
 
 def _load_ordered_payloads(root: Path) -> list[tuple[Path, dict]]:

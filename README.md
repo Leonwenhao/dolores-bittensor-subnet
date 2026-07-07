@@ -48,9 +48,10 @@ instead of re-implementing that logic inside the subnet.
 
 The testnet coldkey has 10.0 test TAO on `--network test`, but no public subnet
 is registered yet, there is no validator permit, and there are no live on-chain
-weights. M6 remains blocked on real `SubtensorChain`/`set_weights` code plus
-Leon-approved signing actions. Current weight artifacts are fallback artifacts,
-not public testnet receipts.
+weights. The M6 chain-readiness layer now has read-only and dry-run
+`SubtensorChain` support; live `set_weights` remains behind explicit
+STOP-LEON gates and has not been executed. Current local artifacts are fallback
+or dry-run artifacts, not public testnet receipts.
 
 Expected local dependency:
 
@@ -74,9 +75,8 @@ jq .weight_result work/m3_demo/subnet_archive/epochs/epoch_1/weights_epoch_1.jso
 ## Immediate Build Path
 
 1. Use `docs/hackerhouse/demo-script.md` for the locked hackerhouse path.
-2. Build the real chain client behind tests, without sending extrinsics.
-3. Add localnet rehearsal where Leon approves signing actions at the keyboard.
-4. Keep public testnet blocked at H4/H6 until code, netuid, permit, and receipts exist.
+2. Run M5 localnet rehearsal where Leon approves signing actions at the keyboard.
+3. Keep public testnet blocked at H4/H6 until netuid, registrations, permit, and receipts exist.
 
 ## Non-Goals For Testnet MVP
 

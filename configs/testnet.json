@@ -14,7 +14,7 @@
   },
   "public_subnet_registered": false,
   "validator_permit": false,
-  "chain_client": "NullChain only; real SubtensorChain/set_weights not implemented",
+  "chain_client": "SubtensorChain read-only/dry-run implemented; live set_weights gated and unexecuted",
   "validator": {
     "hotkey_name": "validator",
     "hotkey_ss58": "5DyNfBdYMMUMiSRNpVCWPm7Lfoexa2A7z7L11QCMMdEmCLdm"

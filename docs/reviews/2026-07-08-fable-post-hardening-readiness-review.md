@@ -109,7 +109,8 @@ responded); every scored row carries `containerized:true, executed:true,
 backend:docker, image:dolores-verifier-pytest:0.1.0`; the duckdb archives
 contain real verification/solver/task-file rows. **What it does not prove:**
 chain weight-setting — `weight_result` is `{mode:"fallback", reason:"offline",
-receipt:null}` in every artifact, correctly, because no chain client exists.
+receipt:null}` in every artifact. At this review point no chain client existed;
+that code gap is superseded by the later M6 chain-readiness pass.
 
 **Preflight evidence:** wire preflights re-run by me this session for
 validator, miner-0, miner-1 — all PASS, exit 0. `pytest -q` → 44 passed;
@@ -147,13 +148,13 @@ missing from the runbook (D-2 below).
 burn-cost reading; H6 Leon at the keyboard for every extrinsic (create →
 start → register ×3 → stake → ≥1 tempo wait → `validator_permit` check
 before any weight epoch); H5 naming; H8 GitHub remote (still none
-configured). **TAO arrival does not itself authorize anything** — and the
-chain client code that M6 needs does not exist yet, by design.
+configured). **TAO arrival does not itself authorize anything** — and later M6
+chain-readiness code still does not authorize live chain writes.
 
-**Doc staleness fixed in M7:** README, runbook, and `configs/testnet.json` now
-say 10.0 test TAO is present, no public subnet is registered, and the true
-current blocker is "chain client unbuilt + Leon-approved create," not funding
-arrival.
+**Doc staleness fixed in M7 and M6 chain-readiness:** README, runbook, and
+`configs/testnet.json` now say 10.0 test TAO is present, no public subnet is
+registered, and the current blockers are Leon-approved create/register/stake/
+live-weight actions, netuid, permit, and receipts, not funding arrival.
 
 ---
 

@@ -3,8 +3,9 @@
 Status: M3 offline demo floor is real, M4 localhost wire mode is sign-off ready,
 and M7 is packaged to run without public testnet success. The `dolores-test`
 coldkey has 10.0 test TAO on `--network test`, but no public subnet is
-registered, no validator permit exists, no on-chain weights exist, and real
-`SubtensorChain`/`set_weights` remains unimplemented by design.
+registered, no validator permit exists, and no on-chain weights exist. The
+read-only/dry-run `SubtensorChain` path exists; live `set_weights` is still
+STOP-LEON gated and unexecuted.
 
 Do not run public-chain write commands during this demo. Do not run `btcli
 subnet create`, `btcli subnet register`, `btcli stake add`, `set_weights`, or
@@ -386,7 +387,8 @@ If asked "what is live today?":
 > The validator loop is live locally: Docker-backed Dolores verification,
 > adversarial rejection gates, scoring, EMA weights, archive evidence, replay
 > checks, and signed Bittensor axon/dendrite transport between local processes.
-> The chain step is deliberately gated.
+> The chain-readiness layer can produce dry-run payloads once a netuid exists;
+> live chain writes are deliberately gated.
 
 If asked "what does the subnet reward?":
 

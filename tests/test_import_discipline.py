@@ -35,10 +35,12 @@ for name in [
 ]:
     importlib.import_module(name)
 
-from dolores_subnet.chain import NullChain
+from dolores_subnet.chain import NullChain, SubtensorChain
 from dolores_subnet.config import SubnetConfig
+from tempfile import TemporaryDirectory
 
-cfg = SubnetConfig.from_env(mode="mock")
+tmpdir = TemporaryDirectory()
+cfg = SubnetConfig.from_env(mode="mock", work_dir=tmpdir.name)
 result = NullChain().apply_weights(
     cfg=cfg,
     epoch_id=1,
@@ -47,6 +49,55 @@ result = NullChain().apply_weights(
     spec_version=cfg.spec_version,
 )
 assert result.to_record() == {"mode": "fallback", "receipt": None, "reason": "offline"}
+
+
+class FakeSubstrate:
+    validator_hotkey = "validator"
+
+    def block(self):
+        return 1
+
+    def subnet_exists(self):
+        return True
+
+    def hotkey_uid(self, hotkey):
+        return {"validator": 0, "miner": 1}.get(hotkey)
+
+    def validator_permit(self, uid):
+        return True
+
+    def weights_rate_limit(self):
+        return 0
+
+    def blocks_since_last_update(self, uid):
+        return 100
+
+    def commit_reveal_enabled(self):
+        return False
+
+    def process_and_convert(self, uids, weights):
+        return uids, [65535 for _ in weights]
+
+    def set_weights(self, **kwargs):
+        raise AssertionError("set_weights must not be called")
+
+
+dry = SubtensorChain(
+    network="test",
+    netuid=1,
+    wallet_name="dolores-test",
+    wallet_hotkey="validator",
+    substrate=FakeSubstrate(),
+)
+dry_result = dry.apply_weights(
+    cfg=cfg,
+    epoch_id=1,
+    weights={"miner": 1.0},
+    active_hotkeys=["miner"],
+    spec_version=cfg.spec_version,
+)
+assert dry_result.mode == "dry_run"
+tmpdir.cleanup()
 """
     env = {**os.environ, "PYTHONPATH": f"src{os.pathsep}."}
 

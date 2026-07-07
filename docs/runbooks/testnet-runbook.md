@@ -3,8 +3,9 @@
 Status: M4 wire-mode rehearsal and release-readiness hardening completed on
 2026-07-08. H2 wallet creation is complete, and the `dolores-test` coldkey now
 has 10.0 test TAO on `--network test`. No public subnet is registered yet. M6
-public testnet remains blocked on real `SubtensorChain`/`set_weights` code plus
-Leon-approved signing/spend extrinsics.
+chain-readiness now has a tested read-only and dry-run `SubtensorChain` path.
+M6 public testnet remains blocked on netuid creation, registration, validator
+permit, and Leon-approved signing/spend extrinsics.
 
 This runbook uses Dolores branding on-chain where a subnet identity/name is
 needed. It never uses mainnet. Every command that signs or spends test TAO is
@@ -17,6 +18,8 @@ marked `LEON ONLY`.
 - Do not paste mnemonics, private keys, provider keys, or wallet files into chat.
 - Agents may run read-only diagnostics with explicit test/localnet network flags.
 - Leon must run every create/register/stake/set-weights/signing command himself.
+- `btcli` has no weights command in this installed version; live `set_weights`
+  uses the SDK through the gated `SubtensorChain` client and is **LEON ONLY**.
 
 ## Current Gate
 
@@ -24,8 +27,10 @@ M4 preflight no longer stops at H2. The `dolores-test` wallet and three hotkeys
 exist locally under `~/.bittensor/wallets/`, and `configs/testnet.json` contains
 only public fields. M4 wire mode has run locally via Bittensor Axon/Dendrite.
 The coldkey has 10.0 test TAO free and 0.0 staked, but M6 public testnet
-registration is still blocked on the unimplemented real chain client and
-STOP-LEON H4/H6 approval for every extrinsic.
+registration is still blocked on STOP-LEON H4/H6 approval for every extrinsic,
+public netuid creation, neuron registration, stake, validator permit, and a
+live weight receipt. The chain client can now do read-only checks and dry-run
+payload receipts, but defaults to `--chain off`.
 
 ```bash
 .venv/bin/python scripts/preflight.py --mode wire \
@@ -150,6 +155,19 @@ print(dict(zip(m.hotkeys, m.validator_permit)))
 PY
 ```
 
+After the localnet miners are registered and serving axons, the agent may run a
+non-signing dry-run epoch:
+
+```bash
+.venv/bin/python neurons/validator.py --mode localnet \
+  --network ws://127.0.0.1:9944 --netuid <N> \
+  --chain dry-run --epoch 1 --quota 2 --work work/m5 \
+  --wallet.name dolores-test --wallet.hotkey validator
+```
+
+This writes `chain_receipt_epoch_1.json` with `submission: null`. A live localnet
+`--chain live` run is still **LEON ONLY** because it signs `set_weights`.
+
 ## M6 - Public Testnet
 
 Preconditions:
@@ -166,9 +184,15 @@ Read-only diagnostics the agent may run:
 
 ```bash
 btcli subnet burn-cost --network test
+btcli subnets check-start --network test --netuid <N>
 .venv/bin/python scripts/preflight.py --mode testnet \
-  --wallet.name dolores-test --wallet.hotkey validator
+  --wallet.name dolores-test --wallet.hotkey validator --netuid <N>
 ```
+
+When `configs/testnet.json.netuid` is still `null`, testnet preflight can only
+check network reachability. Once a netuid exists, preflight adds read-only
+subnet readiness: subnet existence, validator registration, permit, rate-limit,
+and commit-reveal status. It never constructs a live-publish client.
 
 The following sign/spend and are **LEON ONLY**:
 
@@ -194,6 +218,37 @@ can cost both the burn and two days of calendar time.
 After at least one tempo (360 blocks, about 72 minutes), confirm the validator
 permit with a read-only metagraph check. Do not run a weight epoch before the
 validator permit reads `True`.
+
+Dry-run the exact weight payload before any live write:
+
+```bash
+.venv/bin/python neurons/validator.py --mode testnet --netuid <N> \
+  --chain dry-run --epoch 1 --quota 2 --work work/m6 \
+  --wallet.name dolores-test --wallet.hotkey validator
+```
+
+Expected artifact paths:
+
+- `work/m6/subnet_archive/epochs/epoch_1/weights_epoch_1.json`
+- `work/m6/subnet_archive/epochs/epoch_1/chain_receipt_epoch_1.json`
+
+The dry-run receipt has `mode: dry_run`, `reason: dry_run_ok`, the active
+hotkey-to-UID mapping, dropped hotkeys, normalized weights, emitted UID/u16
+payload, payload digest, `submission: null`, and `read_back: null`.
+
+The live SDK weight path is **LEON ONLY** and must not be run by agents:
+
+```bash
+export DOLORES_ALLOW_EXTRINSICS=1
+.venv/bin/python neurons/validator.py --mode testnet --netuid <N> \
+  --chain live --allow-extrinsics \
+  --confirm-live I-AM-LEON-AND-I-APPROVE \
+  --epoch 1 --quota 2 --work work/m6 \
+  --wallet.name dolores-test --wallet.hotkey validator
+```
+
+If any gate is missing, the validator records `mode: error` and
+`reason: extrinsics_not_allowed` instead of calling `set_weights`.
 
 When M6 is ready, update the existing public-only `configs/testnet.json` with the
 new `netuid` and any receipt references. Keep the nested shape already in the

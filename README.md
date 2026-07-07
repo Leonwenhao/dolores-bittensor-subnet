@@ -23,7 +23,7 @@ Mainnet economics are out of scope until the testnet loop is reproducible.
 - `docs/imported/` - copied source context from Dolores Autocurricula and Fable.
 - `docs/architecture/` - subnet MVP plan and implementation decisions.
 - `docs/hackerhouse/` - short pitch material for Bittensor conversations.
-- `src/dolores_subnet/` - shared schemas, scoring helpers, and Dolores bridge.
+- `src/dolores_subnet/` - protocol, packaging, gates, bridge, scoring, archive, and epoch code.
 - `neurons/` - miner and validator entrypoints.
 - `scripts/` - local simulation utilities.
 - `tests/` - lightweight tests for repo scaffolding.
@@ -40,9 +40,10 @@ Start with:
 
 ## Current Status
 
-This repo is a scaffold. It intentionally reuses Dolores Autocurricula as the
-task/verifier/scorer backend instead of re-implementing that logic inside the
-subnet.
+This repo now has the offline demo-floor loop: planted fixtures, Docker-backed
+validation, scoring, EMA weights, archive evidence, and a replayable leaderboard.
+It intentionally reuses Dolores Autocurricula as the task/verifier/scorer backend
+instead of re-implementing that logic inside the subnet.
 
 Expected local dependency:
 
@@ -53,25 +54,18 @@ export DOLORES_REPO="/Users/leonliu/Desktop/Dolores Autocurricula"
 ## Local Smoke
 
 ```bash
-python3 -m unittest discover -s tests
-python3 scripts/local_loop.py --dry-run
-```
-
-To call the real Dolores v3 generator, use the Dolores environment or install
-the Dolores dependencies into this repo's environment:
-
-```bash
-PYTHONPATH=src "/Users/leonliu/Desktop/Dolores Autocurricula/.venv/bin/python" \
-  scripts/local_loop.py --family parser_roundtrip --count 1 --seed 0
+.venv/bin/python scripts/preflight.py --mode offline
+.venv/bin/python scripts/local_epoch.py --mode offline \
+  --miners honest,honest,duplicate_spammer,invalid --quota 2 --epoch 1 --work work/m3_demo
+.venv/bin/python scripts/report.py --work work/m3_demo --epoch 1
 ```
 
 ## Immediate Build Path
 
-1. Make `scripts/local_loop.py` call Dolores v3 task generation.
-2. Add a validator bridge that runs Docker verification and local scoring.
-3. Add testnet wallet/subtensor preflight.
-4. Implement minimal Bittensor miner/validator messages.
-5. Demo one epoch on testnet with mock emissions if needed.
+1. Add localhost axon/dendrite wire mode.
+2. Add localnet rehearsal where Leon approves signing actions at the keyboard.
+3. Prepare public testnet runbook and stop at wallet/test-TAO human gates.
+4. Package the hackerhouse demo without overclaiming beyond the gates passed.
 
 ## Non-Goals For Testnet MVP
 

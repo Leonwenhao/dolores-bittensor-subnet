@@ -45,6 +45,46 @@ def normalize_weights(raw_scores: Mapping[str, float]) -> dict[str, float]:
     return {uid: score / total for uid, score in clipped.items()}
 
 
+def top_k_epoch_scores(
+    miner_task_values: Mapping[str, list[float]],
+    *,
+    top_k: int,
+) -> dict[str, float]:
+    scores: dict[str, float] = {}
+    for miner, values in miner_task_values.items():
+        best = sorted((max(0.0, float(value)) for value in values), reverse=True)[:top_k]
+        scores[miner] = round(sum(best), 6)
+    return scores
+
+
+def update_ema_scores(
+    previous: Mapping[str, float],
+    epoch_scores: Mapping[str, float],
+    *,
+    alpha: float,
+    infra_only_miners: set[str] | None = None,
+) -> dict[str, float]:
+    infra_only_miners = infra_only_miners or set()
+    miners = set(previous) | set(epoch_scores)
+    updated: dict[str, float] = {}
+    for miner in sorted(miners):
+        if miner in infra_only_miners:
+            updated[miner] = round(float(previous.get(miner, 0.0)), 6)
+            continue
+        prev = float(previous.get(miner, 0.0))
+        current = float(epoch_scores.get(miner, 0.0))
+        updated[miner] = round(alpha * current + (1.0 - alpha) * prev, 6)
+    return updated
+
+
+def normalize_active_weights(
+    ema_state: Mapping[str, float],
+    active_hotkeys: list[str],
+) -> dict[str, float]:
+    active = {hotkey: float(ema_state.get(hotkey, 0.0)) for hotkey in active_hotkeys}
+    return normalize_weights(active)
+
+
 def task_value_from_score(score: Any) -> float:
     """Return the runtime-cost-free task value used for subnet weights."""
 

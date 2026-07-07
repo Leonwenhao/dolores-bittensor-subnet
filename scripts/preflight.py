@@ -233,7 +233,12 @@ def chain_reachability_check(cfg: SubnetConfig) -> tuple[str, str]:
     try:
         import bittensor as bt
 
-        subtensor = bt.subtensor(network=cfg.network)
+        factory = getattr(bt, "Subtensor", None)
+        if factory is None:
+            factory = getattr(bt, "subtensor", None)
+        if factory is None:
+            return result("FAIL", "bittensor has no Subtensor constructor")
+        subtensor = factory(network=cfg.network)
         block = subtensor.block
     except Exception as exc:  # noqa: BLE001
         return result("FAIL", f"{cfg.network}: {exc}")

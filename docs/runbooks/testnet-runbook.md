@@ -121,12 +121,27 @@ Artifacts:
 Agent may start the local subtensor container:
 
 ```bash
-docker run -d --name local_chain -p 9944:9944 -p 9945:9945 \
+docker run -d --name dolores_localnet -p 9944:9944 -p 9945:9945 \
   ghcr.io/opentensor/subtensor-localnet:devnet-ready
 
 .venv/bin/python scripts/preflight.py --mode localnet \
-  --wallet.name dolores-test --wallet.hotkey validator
+  --wallet.name dolores-test --wallet.hotkey validator \
+  --network ws://127.0.0.1:9944
 ```
+
+The 2026-07-08 M5 rehearsal confirmed this image runs on arm64 and exposes a
+preseeded local subnet `netuid=1` named `apex`. Read-only discovery commands:
+
+```bash
+btcli subnets list --network ws://127.0.0.1:9944 --json-output
+btcli subnets show --netuid 1 --mechid 0 \
+  --network ws://127.0.0.1:9944 --no-prompt --json-output
+```
+
+That preseeded subnet does not register the Dolores hotkeys by default. A
+netuid-aware preflight may therefore fail closed with
+`reason: "validator_unregistered"` until the localnet registration steps below
+are completed.
 
 The following commands sign and are **LEON ONLY**:
 
@@ -150,8 +165,9 @@ check:
 ```bash
 .venv/bin/python - <<'PY'
 import bittensor as bt
-m = bt.metagraph(netuid=<N>, network='ws://127.0.0.1:9944')
-print(dict(zip(m.hotkeys, m.validator_permit)))
+st = bt.Subtensor(network="ws://127.0.0.1:9944")
+m = st.metagraph(netuid=<N>, lite=True)
+print(dict(zip([str(h) for h in m.hotkeys], [bool(p) for p in m.validator_permit])))
 PY
 ```
 
@@ -167,6 +183,21 @@ non-signing dry-run epoch:
 
 This writes `chain_receipt_epoch_1.json` with `submission: null`. A live localnet
 `--chain live` run is still **LEON ONLY** because it signs `set_weights`.
+
+If registration is not yet approved, a static-endpoint localnet rehearsal can
+still validate miner payloads and prove the chain client fails closed:
+
+```bash
+.venv/bin/python neurons/validator.py --mode localnet \
+  --network ws://127.0.0.1:9944 --netuid 1 \
+  --chain dry-run \
+  --miner-endpoints 127.0.0.1:8091:<miner-0-hotkey>,127.0.0.1:8092:<miner-1-hotkey> \
+  --epoch 1 --quota 2 --work work/m5_static \
+  --wallet.name dolores-test --wallet.hotkey validator
+```
+
+This fallback is not full M5 sign-off because miner discovery is not from the
+metagraph and no localnet `set_weights` extrinsic is submitted.
 
 ## M6 - Public Testnet
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 from dolores_subnet.chain import LIVE_CONFIRMATION, NullChain, SubtensorChain
@@ -419,3 +421,30 @@ def test_preflight_chain_readiness_is_read_only(tmp_path) -> None:
     assert status == "PASS"
     assert '"reason": "ok"' in detail
     assert fake.set_weights_calls == []
+
+
+def test_preflight_chain_reachability_uses_current_subtensor_constructor(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    from scripts.preflight import chain_reachability_check
+
+    calls: list[str] = []
+
+    class FakeSubtensor:
+        def __init__(self, *, network: str) -> None:
+            calls.append(network)
+            self.block = 42
+
+    monkeypatch.setitem(sys.modules, "bittensor", SimpleNamespace(Subtensor=FakeSubtensor))
+    cfg = SubnetConfig.from_env(
+        mode="localnet",
+        work_dir=tmp_path,
+        network="ws://127.0.0.1:9944",
+    )
+
+    status, detail = chain_reachability_check(cfg)
+
+    assert status == "PASS"
+    assert detail == "ws://127.0.0.1:9944 block=42"
+    assert calls == ["ws://127.0.0.1:9944"]

@@ -43,18 +43,18 @@ parallel de-risking branch after M4. The demo is safe from M3 onward: M3 = offli
 demo, M5 = local-chain demo, M6 = public testnet demo. Each is a strict superset.
 
 **Human-blocking tasks (Leon):** H1 Docker Desktop running + host tooling (`jq`) +
-macOS firewall approval for axon ports; H2 create testnet-only coldkey/hotkeys; H3
-request test TAO in the Bittensor Discord (**start immediately — longest lead time,
-blocks only M6; over-ask, because validator-permit stake may be the binding
-quantity**); H4 approve the testnet subnet-creation spend (~100 test TAO locked);
-H5 decide repo/subnet public naming; H6 confirm each chain extrinsic before it is
-sent; H7 (optional, default NO) any paid-panel decision; H8 create the GitHub
-remote and provide authenticated push.
+macOS firewall approval for axon ports; H2 create testnet-only coldkey/hotkeys
+(complete); H3 receive test TAO (complete: 10.0 TAO free on `--network test`,
+0.0 staked); H4 approve the live testnet subnet-creation burn after a fresh
+`btcli subnet burn-cost --network test` read and the 14,400-block (~2-day)
+create-reuse warning; H5 decide repo/subnet public naming; H6 confirm each chain
+extrinsic before it is sent; H7 (optional, default NO) any paid-panel decision;
+H8 create the GitHub remote and provide authenticated push.
 
-**First task a coding agent should start immediately: M0 task 0–2 (rewrite
-`config.py` with the network allowlist, then create the dedicated subnet `.venv`
-and lock the dependency set), while Leon starts H3 (test TAO request) in parallel
-today.**
+**Current post-M7 task discipline:** M3 offline and M4 local wire demos are the
+hackerhouse floor. H3 no longer blocks M6 funding, but public testnet remains
+gated on real chain-client code plus STOP-LEON approval for every create,
+register, stake, and weight-setting extrinsic.
 
 ---
 
@@ -854,18 +854,19 @@ milestone is explicitly waived with the arm64 failure documented in the diary.
 hotkeys, at least one full epoch with weights on the public test chain, receipts
 preserved.
 
-**Preconditions (all human, see §5):** H2 wallets exist; H3 test TAO received
-(subnet creation needs ~100 test TAO locked + registration burns + **validator
-self-stake, potentially the binding quantity** — verify creation cost live with
-`btcli subnet lock-cost --network test`); H4 spend approved; H6 Leon at the
-keyboard for every extrinsic.
+**Preconditions (human-gated, see §5):** H2 wallets exist; H3 test TAO received
+(current state: 10.0 test TAO free, 0.0 staked; subnet creation uses a dynamic
+burn, recently observed around 1.0000 TAO, but **must** be re-queried live with
+`btcli subnet burn-cost --network test`); real `SubtensorChain`/`set_weights`
+code exists behind the allowlist; H4 spend approved; H6 Leon at the keyboard for
+every extrinsic.
 
 **Files:** `configs/testnet.json` (netuid, network, public ss58 addresses),
 `docs/runbooks/testnet-runbook.md` (final), `chain.py` (testnet params).
 
 **Implementation sequence (agent prepares commands + verifies results; Leon
 executes anything that signs):**
-1. `btcli subnet lock-cost --network test` → record cost; Leon approves (H4).
+1. `btcli subnet burn-cost --network test` → record cost; Leon approves (H4).
 2. `btcli subnet create --network test --wallet.name dolores-test` (Leon). Record
    netuid → `configs/testnet.json`. Note the 14,400-block (~2-day) per-account
    subnet-creation rate limit: this step is one-shot; do not experiment with it.
@@ -915,7 +916,8 @@ hyperparameters --netuid <N> --network test`; as subnet owner, adjust adjustable
 params via the sudo-set command (verified spelling per step 10); if still
 blocked, ship fallback (b) and record the exact error. Testnet resets/netuid
 recycling: keep everything re-runnable from the runbook; treat the netuid as
-disposable. Discord faucet delay: M6 simply waits; M0–M5 and M7 do not.
+disposable. Future test-TAO top-up delay only blocks additional public-chain
+attempts; M3, M4, and M7 do not depend on public-chain success.
 
 **Done when (two explicit tiers — an agent must not conflate them):**
 - **Done, tier (a) — earns the `testnet-v0` tag:** a real `set_weights`
@@ -1081,8 +1083,8 @@ via a dated "Deviations" appendix — never rewrite history.
 |---|---|---|---|---|---|
 | H1 | Install/start Docker Desktop (keep running during M2+ gates); `brew install jq`; approve the macOS firewall prompt the first time Python binds an axon port (or pre-allow the venv python in System Settings → Firewall) | Fail-closed verification requires a live daemon; the M3 gate and demo use `jq`; the firewall dialog is GUI-only — an unattended agent run silently hangs on it | Confirmation `docker version` and `jq --version` work; firewall approved before M4 | M2–M6, demo (Docker/jq); M4+ (firewall) | None; no credentials involved |
 | H2 | Create testnet-only wallet: coldkey `dolores-test`, hotkeys `validator`, `miner-0`, `miner-1` via `btcli wallet new-coldkey / new-hotkey` | Agents must never generate, view, or handle mnemonics/keys; synapse signing and all chain ops need them | The wallet/hotkey *names* only (defaults above fine); confirmation created | M4 (wire signing), M5, M6 | **Brand-new keys — do NOT reuse any Dolores/production/funded key.** Mnemonics written down offline, never typed into the agent chat, never committed. Wallet dir stays default `~/.bittensor/wallets/` (repo `.gitignore` also excludes `wallets/`) |
-| H3 | Obtain test TAO: post in Bittensor Discord faucet/help thread (channel 830068283314929684) requesting testnet TAO for the coldkey address; `btcli wallet faucet` is disabled on public testnet. Prerequisite: a Discord account joined to the Bittensor server (do that first) | Only source of test TAO in mid-2026; latency unknown (hours–days); re-queuing after an under-ask costs days | The coldkey ss58 (public address — safe to share). **Over-ask**: lock cost ~100 (verify with `btcli subnet lock-cost --network test`) + 3 registration burns + **validator self-stake, the load-bearing unknown** — the permit/weight-setting stake requirement may be substantial (mainnet-analog figure ~1000; testnet enforcement unconfirmed). Ask for a generous grant (e.g., "~150, more if possible — up to ~1,200 if grantable") and state it funds a subnet-creation + validator test | M6 only; the *size* received determines whether M6 tier (a) is reachable | **Start today.** Public address only; no one legitimate will ever ask for the mnemonic |
-| H4 | Approve testnet subnet creation spend (lock ~100 test TAO; returned on subnet deregistration) and the one-shot nature (2-day rate limit per account) | Irreversible-ish, externally visible chain action | A yes/no after seeing live `lock-cost` output | M6 | Test TAO has no monetary value, but the rate limit makes mistakes costly in time |
+| H3 | Test TAO funding for the `dolores-test` coldkey | Needed for public testnet create/register/stake attempts | Complete as of 2026-07-08: 10.0 test TAO free, 0.0 staked, 10.0 total on `--network test` | M6 funding no longer blocks the next code/doc step; amount may still constrain stake/permit experiments | Public address only; no one legitimate will ever ask for the mnemonic |
+| H4 | Approve testnet subnet creation burn/spend and the one-shot nature (14,400-block / ~2-day rate limit per account) | Irreversible externally visible chain action; burn cost is dynamic | A yes/no after seeing fresh `btcli subnet burn-cost --network test` output | M6 | Test TAO has no monetary value, but the rate limit makes mistakes costly in time; M7 observed `1.0000 τ`, but re-query immediately before any create |
 | H5 | Public naming decision: GitHub repo name/visibility, subnet identity string, whether "Dolores" branding is used on-chain | Outward-facing identity; agents shouldn't publish | Repo name + public/private; subnet name string for registration metadata | M6 (registration), M7 (README/demo) | Repo must stay free of `docs/imported` items marked internal? — current imports were curated for standalone use; Leon confirms before any public push |
 | H6 | Be at the keyboard for every chain extrinsic (localnet + testnet): create, register, stake, sudo hyperparam changes | Extrinsics sign with the coldkey/hotkeys; agent prepares exact commands, human executes and pastes output | Command outputs (netuid, tx hashes) back to the agent | M5, M6 | Verify `--network` flag on every command before running (test vs. finney); never run a command containing `finney` mainnet during this plan |
 | H7 | (Optional, default NO) Paid-panel decision: whether any Fireworks calls happen anywhere in demo prep | Cost + the plan promises no paid calls | Explicit opt-in only | Nothing (mock panel is the plan) | If ever enabled, key stays in Dolores repo env, never in this repo |
@@ -1093,8 +1095,10 @@ via a dated "Deviations" appendix — never rewrite history.
 ## 6. Testnet Readiness (the contract for "a successful testnet run")
 
 1. **Wallet readiness:** coldkey `dolores-test` + 3 hotkeys exist locally (H2);
-   coldkey holds ≥ lock-cost + 3×burn + validator-stake headroom in test TAO (H3);
-   `preflight --mode testnet` PASSes wallet checks without reading key material.
+   coldkey currently holds 10.0 test TAO free and 0.0 staked (H3 complete);
+   a fresh `btcli subnet burn-cost --network test` plus validator-stake headroom
+   check is required before any M6 public-chain action; `preflight --mode
+   testnet` PASSes wallet checks without reading key material.
 2. **Network/subtensor readiness:** `wss://test.finney.opentensor.ai:443`
    reachable; SDK connects and reads current block; our netuid exists
    (`configs/testnet.json` committed).
@@ -1147,13 +1151,13 @@ via a dated "Deviations" appendix — never rewrite history.
 > verifiers-compatible formats, so accepted tasks are immediately consumable as an
 > RL curriculum dataset — whether they improve training is a separate experiment
 > we haven't run, and we say so. The subnet is the adversarial proving ground; the
-> archive is the asset. We run the full loop on our own testnet netuid — miner,
-> validator, scoring, and the weight extrinsic. [If M6 tier (a):] "Here's the
+> archive is the asset. [If M6 tier (a):] "We run the full loop on our own testnet
+> netuid — miner, validator, scoring, and the weight extrinsic. Here's the
 > `set_weights` receipt, read back from the metagraph." [If tier (b)/waiting:]
-> "The chain call is queued behind test-TAO rationing — today it writes the
-> identical artifact the extrinsic consumes; every other layer is exactly what
-> runs on chain." Mainnet economics come only after the loop survives adversarial
-> testnet pressure."
+> "The chain call is queued behind real chain-client code and Leon-approved
+> public-testnet extrinsics — today it writes the identical artifact the
+> extrinsic consumes; every other layer is exactly what runs on chain." Mainnet
+> economics come only after the loop survives adversarial testnet pressure."
 >
 > (The demo driver must know which branch is true on the day; rehearse both.)
 
@@ -1212,15 +1216,16 @@ chain receipt.
 
 ### 7.4 If live testnet registration/funding is delayed
 
-Say exactly: *"Test-TAO on Bittensor testnet is Discord-rationed and our request
-is in the queue — so today's weights step writes the identical artifact the chain
-call consumes, and here's the same loop running against a local Subtensor chain
-[show M5 receipts if available]. Every other layer — the safety scan, the Docker
-verification, the probes, dedup, scoring — is exactly what will run on testnet;
-the chain call is one function at the top."* If Docker or the live epoch itself
-fails on stage, switch to the pre-recorded epoch capture (§7.3) and narrate from
-it — the archive rows and leaderboard are the proof, not the live run. Never
-claim: live on mainnet; 2k-task archive; 15 strong frontier tasks;
+Say exactly: *"We have 10.0 test TAO on the testnet coldkey, but the public
+subnet is not registered yet and the real chain client is intentionally still
+behind the STOP-LEON gate. Today's weights step writes the deterministic artifact
+the chain call will consume; every other layer — the safety scan, Docker
+verification, probes, dedup, scoring, and local axon/dendrite transport — is
+running now."* If Docker, ports, RPC, or the live epoch itself fails on stage,
+switch to the pre-recorded epoch capture (§7.3) and narrate from it — the archive
+rows and leaderboard are the proof, not the live run. Never claim: live on
+mainnet; a registered public testnet subnet; public emissions; validator permit;
+live on-chain weights; public miners; 2k-task archive; 15 strong frontier tasks;
 production-grade isolation; that the scorer predicts training value
 (banned-claims list from `docs/imported/limitations.md` +
 `claims-and-evidence.md` applies verbatim).
@@ -1351,7 +1356,7 @@ fallback (M6); the archive rows backing every number shown.
 - **Bittensor SDK:** `bittensor>=10.5,<11` (pure-python wheel, arm64-fine;
   `bittensor-wallet`/`bittensor-drand` ship arm64 wheels). `bittensor-cli` comes
   with it; btcli is only ever run by Leon (H6) except read-only queries
-  (`lock-cost`, `metagraph`, `hyperparameters`) which the agent may run with
+  (`burn-cost`, `metagraph`, `hyperparameters`) which the agent may run with
   explicit `--network test|ws://127.0.0.1:9944` only — never without a network
   flag (btcli defaults to mainnet).
 - **Docker:** Docker Desktop (H1) for (a) the Dolores verifier image
@@ -1452,3 +1457,15 @@ The copy-paste demo commands in §7.2 are superseded by
 `docs/hackerhouse/demo-script.md`. Actual artifacts live under
 `work/<run>/subnet_archive/...`, including `archive.duckdb`, `submissions.jsonl`,
 and `epochs/epoch_<N>/weights_epoch_<N>.json`.
+
+### 2026-07-08 — M7 funding and public-chain claim update
+
+H3 funding is now complete: the `dolores-test` coldkey has 10.0 test TAO free
+and 0.0 staked on `--network test`. This does not make M6 complete. No public
+subnet is registered, no validator permit exists, no on-chain weights have been
+set, and real `SubtensorChain`/`set_weights` code remains intentionally
+unimplemented. The old subnet-creation cost wording is superseded by the current
+read-only command `btcli subnet burn-cost --network test`; M7 observed
+`1.0000 τ`, but the burn cost is dynamic and must be re-queried immediately
+before any STOP-LEON H4/H6 public-chain action. Subnet creation also carries the
+14,400-block (~2-day) per-account reuse/rate-limit warning.

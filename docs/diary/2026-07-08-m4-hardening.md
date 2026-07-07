@@ -137,6 +137,7 @@ Result:
 ## Remaining Blocks
 
 M4 wire mode is sign-off ready from local evidence. M6 public testnet remains
-blocked on H3 test TAO, H4 live testnet lock/spend approval, H6 Leon-at-keyboard
-signing for every extrinsic, and future real chain client code beyond the
-non-signing `NullChain` seam.
+blocked on real chain-client code beyond the non-signing `NullChain` seam, H4
+live testnet burn/spend approval after a fresh `burn-cost --network test` read,
+and H6 Leon-at-keyboard signing for every extrinsic. H3 funding was later
+completed with 10.0 test TAO on 2026-07-08.

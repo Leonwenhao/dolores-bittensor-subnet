@@ -1,10 +1,20 @@
 {
   "name": "Dolores Autocurricula",
   "network": "test",
-  "status": "wallets_ready_waiting_for_test_tao",
+  "status": "funded_no_public_subnet_registered",
   "netuid": null,
   "wallet_name": "dolores-test",
   "coldkey_ss58": "5ELE5RrYaxhRLoumvMenr2rSqpZZLX4nxNnYA5B7mLLNJHVG",
+  "balance": {
+    "network": "test",
+    "free_tao": 10.0,
+    "staked_tao": 0.0,
+    "total_tao": 10.0,
+    "source": "operator-reported 2026-07-08"
+  },
+  "public_subnet_registered": false,
+  "validator_permit": false,
+  "chain_client": "NullChain only; real SubtensorChain/set_weights not implemented",
   "validator": {
     "hotkey_name": "validator",
     "hotkey_ss58": "5DyNfBdYMMUMiSRNpVCWPm7Lfoexa2A7z7L11QCMMdEmCLdm"

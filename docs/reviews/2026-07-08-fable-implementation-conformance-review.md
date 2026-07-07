@@ -81,7 +81,7 @@ leaks secrets; the safety boundaries held everywhere we probed.
 | **M3** offline demo floor | **complete** | Empty determinism diff `m3_a` vs `m3_b` (verified first-hand); `report.py --replay-check` → `REPLAY OK`; export leak test `test_bridge_mock.py:78-97`; `local_loop.py`/`dolores_bridge.py` deleted; tag `demo-floor-v0` at `71b5066`; diary with leaderboard + timing | stale strings in `egg-info/` trip the documented grep gate verbatim (F-15) | regenerate/ignore egg-info |
 | **M4** wire integration | **partial** | Real axon/dendrite run: `work/m4_wire/` + `work/m4_wire_kill/` artifacts with real ss58s, `containerized=true`, genuine dendrite failure message; `wire.py:12` (`DoloresTaskSynapse(bt.Synapse)`); wire preflight ×3 PASS (this session); diary `2026-07-08-m4-wire.md` | F-01, F-04, F-05, F-06, F-07 below | fix unreachable semantics, add serialization test, commit, update Deviations Appendix |
 | **M5** localnet rehearsal | **not started** (waivable) | no `work/m5/`, no `SubtensorChain`, no metagraph discovery | expected — off critical path | waive in diary or defer until chain layer exists |
-| **M6** public testnet | **blocked (correctly)** | zero extrinsic code (grep: no `set_weights` in src/neurons/scripts); `weight_result.mode` hardcoded `"fallback"` (`epoch.py:108`); `configs/testnet.json` public-only, `netuid: null`; mainnet guard `config.py:90-106` | chain layer unbuilt; H3 not started | Leon starts H3 today; build chain seam behind the M6 human gate |
+| **M6** public testnet | **blocked (correctly)** | zero extrinsic code (grep: no `set_weights` in src/neurons/scripts); `weight_result.mode` hardcoded `"fallback"` (`epoch.py:108`); `configs/testnet.json` public-only, `netuid: null`; mainnet guard `config.py:90-106` | chain layer unbuilt; H3 was later completed with 10.0 test TAO | build chain seam behind the M6 human gate |
 | **M7** demo packaging | **not started** | no `docs/hackerhouse/demo-script.md`; `README.md:65` still lists wire mode as pending; no rehearsal transcript | plan §7.2 template paths are wrong (F-09) | author demo-script with corrected `subnet_archive/` paths; rewrite README; timed rehearsal |
 
 **Direct answers to the three posed questions:**
@@ -376,7 +376,7 @@ Each claim is backed by an artifact or a command re-runnable on this machine.
 | A registered public testnet subnet / our own netuid | `btcli subnet create --network test` receipt; `configs/testnet.json.netuid` non-null (currently `null`) |
 | Live on-chain weights / any `set_weights` extrinsic | extrinsic hash + block in `weight_result.receipt` (all current artifacts: `mode:"fallback", receipt:null`) — also requires the not-yet-built chain layer |
 | Validator permit held | `metagraph.validator_permit == True` for our UID after stake + ≥1 tempo |
-| Real testnet miner/validator economy, staking, emissions | test TAO received (H3 not started) + stake receipts |
+| Real testnet miner/validator economy, staking, emissions | registered subnet + stake receipts + permit + weight receipts |
 | Wire transport over the *public* testnet with metagraph discovery | M4 proved localhost + static endpoints only; metagraph discovery is unwritten (M5/M6 code) |
 | Localnet chain rehearsal completed | `work/m5/` receipts + metagraph dump (absent; M5 not started) |
 | A timed ≤8-min demo from a clean clone | committed `demo-script.md` + rehearsal transcript (absent), and the clone currently lacks all M4 work (F-06) |
@@ -422,8 +422,8 @@ human-gated):
 3. Runbook polish: add the 2-day subnet-create rate-limit warning; reconcile
    the `testnet.json` example shape; record firewall state (F-17).
 4. Pre-record the fallback epoch capture per plan §7.3.
-5. Leon: H3 today (test TAO request — longest lead time), then H5 naming →
-   H8 GitHub remote (currently none configured) → H4/H6 when TAO lands.
+5. Leon: H5 naming → H8 GitHub remote (currently none configured) → H4/H6
+   when chain-client code is ready and burn-cost has been re-queried.
 
 ---
 

@@ -46,8 +46,10 @@ validation, scoring, EMA weights, archive evidence, and a replayable leaderboard
 It intentionally reuses Dolores Autocurricula as the task/verifier/scorer backend
 instead of re-implementing that logic inside the subnet.
 
-M6 public testnet is still blocked until test TAO arrives and Leon explicitly
-approves every signing action. Current weight artifacts are fallback artifacts,
+The testnet coldkey has 10.0 test TAO on `--network test`, but no public subnet
+is registered yet, there is no validator permit, and there are no live on-chain
+weights. M6 remains blocked on real `SubtensorChain`/`set_weights` code plus
+Leon-approved signing actions. Current weight artifacts are fallback artifacts,
 not public testnet receipts.
 
 Expected local dependency:
@@ -71,10 +73,10 @@ jq .weight_result work/m3_demo/subnet_archive/epochs/epoch_1/weights_epoch_1.jso
 
 ## Immediate Build Path
 
-1. Rehearse M4 wire mode from `docs/runbooks/testnet-runbook.md`.
-2. Add localnet rehearsal where Leon approves signing actions at the keyboard.
-3. Keep public testnet blocked at H3/H4/H6 until test TAO and approvals exist.
-4. Package the hackerhouse demo without overclaiming beyond the gates passed.
+1. Use `docs/hackerhouse/demo-script.md` for the locked hackerhouse path.
+2. Build the real chain client behind tests, without sending extrinsics.
+3. Add localnet rehearsal where Leon approves signing actions at the keyboard.
+4. Keep public testnet blocked at H4/H6 until code, netuid, permit, and receipts exist.
 
 ## Non-Goals For Testnet MVP
 

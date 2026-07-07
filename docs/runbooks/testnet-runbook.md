@@ -1,8 +1,10 @@
 # Dolores Autocurricula Bittensor Testnet Runbook
 
 Status: M4 wire-mode rehearsal and release-readiness hardening completed on
-2026-07-08. H2 wallet creation is complete. M6 public testnet remains blocked
-on test TAO and human-signed extrinsics.
+2026-07-08. H2 wallet creation is complete, and the `dolores-test` coldkey now
+has 10.0 test TAO on `--network test`. No public subnet is registered yet. M6
+public testnet remains blocked on real `SubtensorChain`/`set_weights` code plus
+Leon-approved signing/spend extrinsics.
 
 This runbook uses Dolores branding on-chain where a subnet identity/name is
 needed. It never uses mainnet. Every command that signs or spends test TAO is
@@ -21,8 +23,9 @@ marked `LEON ONLY`.
 M4 preflight no longer stops at H2. The `dolores-test` wallet and three hotkeys
 exist locally under `~/.bittensor/wallets/`, and `configs/testnet.json` contains
 only public fields. M4 wire mode has run locally via Bittensor Axon/Dendrite.
-Test TAO is still missing, so M6 public testnet registration remains blocked on
-H3/H4/H6.
+The coldkey has 10.0 test TAO free and 0.0 staked, but M6 public testnet
+registration is still blocked on the unimplemented real chain client and
+STOP-LEON H4/H6 approval for every extrinsic.
 
 ```bash
 .venv/bin/python scripts/preflight.py --mode wire \
@@ -40,6 +43,7 @@ Dolores company custody.
 Public fields currently recorded in `configs/testnet.json`:
 
 - Coldkey: `5ELE5RrYaxhRLoumvMenr2rSqpZZLX4nxNnYA5B7mLLNJHVG`
+- Testnet balance: 10.0 free TAO, 0.0 staked TAO, 10.0 total TAO.
 - Validator hotkey: `5DyNfBdYMMUMiSRNpVCWPm7Lfoexa2A7z7L11QCMMdEmCLdm`
 - Miner 0 hotkey: `5FHE1ZpqMVWS3wyjbTmqDP4obyT1UhJ5fmzJWkf8noAVxkEA`
 - Miner 1 hotkey: `5DhPKfTfbN5nwTx3riEQz5TPZH94PV8GLV8oqFMyFG61ZkQg`
@@ -151,14 +155,17 @@ PY
 Preconditions:
 
 - H2 wallets exist.
-- H3 test TAO has arrived on the `dolores-test` coldkey.
-- H4 Leon approves the live testnet subnet lock/spend after seeing lock cost.
+- H3 is satisfied: 10.0 test TAO is present on the `dolores-test` coldkey.
+- Real `SubtensorChain`/`set_weights` code has been implemented and tested
+  without signing.
+- H4 Leon approves the live testnet subnet burn/spend after seeing a fresh burn
+  cost.
 - H6 Leon is at the keyboard for every extrinsic.
 
 Read-only diagnostics the agent may run:
 
 ```bash
-btcli subnet lock-cost --network test
+btcli subnet burn-cost --network test
 .venv/bin/python scripts/preflight.py --mode testnet \
   --wallet.name dolores-test --wallet.hotkey validator
 ```
@@ -178,20 +185,50 @@ btcli stake add --netuid <N> --network test \
   --wallet.name dolores-test --wallet.hotkey validator --amount <approved-test-tao>
 ```
 
+Before `btcli subnet create`, re-query `btcli subnet burn-cost --network test`.
+The burn cost is dynamic. A read-only M7 check observed `1.0000 τ`, but that
+number is point-in-time only. Subnet creation also has a 14,400-block
+(approximately 2-day) per-account reuse/rate-limit window, so a mistaken create
+can cost both the burn and two days of calendar time.
+
 After at least one tempo (360 blocks, about 72 minutes), confirm the validator
 permit with a read-only metagraph check. Do not run a weight epoch before the
 validator permit reads `True`.
 
-When M6 is ready, create `configs/testnet.json` with public-only fields:
+When M6 is ready, update the existing public-only `configs/testnet.json` with the
+new `netuid` and any receipt references. Keep the nested shape already in the
+file:
 
 ```json
 {
   "name": "Dolores Autocurricula",
   "network": "test",
-  "netuid": "<N>",
+  "status": "public_subnet_registered_no_weights",
+  "netuid": <N>,
   "wallet_name": "dolores-test",
-  "validator_hotkey": "<validator-ss58>",
-  "miner_hotkeys": ["<miner-0-ss58>", "<miner-1-ss58>"]
+  "coldkey_ss58": "5ELE5RrYaxhRLoumvMenr2rSqpZZLX4nxNnYA5B7mLLNJHVG",
+  "balance": {
+    "network": "test",
+    "free_tao": "<read-only balance at time of update>",
+    "staked_tao": "<read-only balance at time of update>",
+    "total_tao": "<read-only balance at time of update>"
+  },
+  "public_subnet_registered": true,
+  "validator_permit": false,
+  "validator": {
+    "hotkey_name": "validator",
+    "hotkey_ss58": "5DyNfBdYMMUMiSRNpVCWPm7Lfoexa2A7z7L11QCMMdEmCLdm"
+  },
+  "miners": [
+    {
+      "hotkey_name": "miner-0",
+      "hotkey_ss58": "5FHE1ZpqMVWS3wyjbTmqDP4obyT1UhJ5fmzJWkf8noAVxkEA"
+    },
+    {
+      "hotkey_name": "miner-1",
+      "hotkey_ss58": "5DhPKfTfbN5nwTx3riEQz5TPZH94PV8GLV8oqFMyFG61ZkQg"
+    }
+  ]
 }
 ```
 

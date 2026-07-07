@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from dolores_subnet import archive, bridge
+from dolores_subnet.chain import ChainClient, NullChain
 from dolores_subnet.config import SubnetConfig
 from dolores_subnet.gates import GateContext
 from dolores_subnet.scoring import (
@@ -41,12 +42,23 @@ def run_epoch(
     *,
     epoch_id: int,
     quota: int,
+    chain_client: ChainClient | None = None,
 ) -> EpochResult:
     started = time.monotonic()
     archive.init_archive(cfg)
     context = GateContext(quota=quota)
-    collected = _collect(miners, epoch_id=epoch_id, quota=quota)
     outcomes: list[tuple[MinerLike, bridge.SubmissionOutcome]] = []
+    for miner in miners:
+        terminal = _terminal_outcome(miner)
+        if terminal is None:
+            continue
+        archive.append_submission(
+            cfg,
+            terminal.to_record(epoch_id=epoch_id, miner_hotkey=miner.hotkey, miner_uid=miner.uid),
+        )
+        outcomes.append((miner, terminal))
+
+    collected = _collect(miners, epoch_id=epoch_id, quota=quota)
     for miner, payload in sorted(collected, key=lambda item: str(item[1].get("package_hash", ""))):
         outcome = bridge.validate_submission(
             payload,
@@ -95,6 +107,14 @@ def run_epoch(
         weight_reason = "all_zero"
     if outcomes and all(outcome.status == "infra_error" for _, outcome in outcomes):
         weight_reason = "epoch_degraded_all_infra"
+    chain_result = (chain_client or NullChain()).apply_weights(
+        cfg=cfg,
+        epoch_id=epoch_id,
+        weights=weights,
+        active_hotkeys=active_hotkeys,
+        spec_version=cfg.spec_version,
+        fallback_reason=weight_reason or "offline",
+    )
 
     artifact = {
         "epoch_id": epoch_id,
@@ -104,11 +124,7 @@ def run_epoch(
         "ema_state": dict(sorted(ema_state.items())),
         "weights": dict(sorted(weights.items())),
         "degraded": degraded,
-        "weight_result": {
-            "mode": "fallback",
-            "receipt": None,
-            "reason": weight_reason or "offline",
-        },
+        "weight_result": chain_result.to_record(),
         "timing": {
             "created_at": datetime.now(UTC).isoformat(),
             "duration_ms": round((time.monotonic() - started) * 1000),
@@ -169,9 +185,27 @@ def _collect(
 ) -> list[tuple[MinerLike, dict[str, Any]]]:
     rows: list[tuple[MinerLike, dict[str, Any]]] = []
     for miner in miners:
+        if getattr(miner, "terminal_status", None):
+            continue
         for payload in miner.submissions(epoch_id=epoch_id, quota=quota):
             rows.append((miner, payload))
     return rows
+
+
+def _terminal_outcome(miner: MinerLike) -> bridge.SubmissionOutcome | None:
+    status = getattr(miner, "terminal_status", None)
+    if not status:
+        return None
+    reason = str(getattr(miner, "terminal_reason", "") or status)
+    gates = {"transport": False} if status == "unreachable" else {"wire": False}
+    return bridge.SubmissionOutcome(
+        status=str(status),
+        task_id=f"terminal_{status}_{miner.uid}",
+        package_hash=None,
+        task_value=0.0,
+        gates=gates,
+        reason=reason,
+    )
 
 
 def _miner_state_path(cfg: SubnetConfig) -> Path:

@@ -40,10 +40,15 @@ Start with:
 
 ## Current Status
 
-This repo now has the offline demo-floor loop: planted fixtures, Docker-backed
+This repo now has the offline demo-floor loop and the M4 localhost wire
+rehearsal: planted fixtures, Bittensor axon/dendrite transport, Docker-backed
 validation, scoring, EMA weights, archive evidence, and a replayable leaderboard.
 It intentionally reuses Dolores Autocurricula as the task/verifier/scorer backend
 instead of re-implementing that logic inside the subnet.
+
+M6 public testnet is still blocked until test TAO arrives and Leon explicitly
+approves every signing action. Current weight artifacts are fallback artifacts,
+not public testnet receipts.
 
 Expected local dependency:
 
@@ -58,13 +63,17 @@ export DOLORES_REPO="/Users/leonliu/Desktop/Dolores Autocurricula"
 .venv/bin/python scripts/local_epoch.py --mode offline \
   --miners honest,honest,duplicate_spammer,invalid --quota 2 --epoch 1 --work work/m3_demo
 .venv/bin/python scripts/report.py --work work/m3_demo --epoch 1
+.venv/bin/python scripts/report.py --work work/m3_demo --epoch 1 --replay-check 1
+
+tail -3 work/m3_demo/subnet_archive/submissions.jsonl | jq .
+jq .weight_result work/m3_demo/subnet_archive/epochs/epoch_1/weights_epoch_1.json
 ```
 
 ## Immediate Build Path
 
-1. Add localhost axon/dendrite wire mode.
+1. Rehearse M4 wire mode from `docs/runbooks/testnet-runbook.md`.
 2. Add localnet rehearsal where Leon approves signing actions at the keyboard.
-3. Prepare public testnet runbook and stop at wallet/test-TAO human gates.
+3. Keep public testnet blocked at H3/H4/H6 until test TAO and approvals exist.
 4. Package the hackerhouse demo without overclaiming beyond the gates passed.
 
 ## Non-Goals For Testnet MVP

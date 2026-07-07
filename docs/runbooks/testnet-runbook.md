@@ -1,6 +1,8 @@
 # Dolores Autocurricula Bittensor Testnet Runbook
 
-Status: draft prepared after M3. M4+ is human-blocked until H2 wallets exist.
+Status: M4 wire-mode rehearsal and release-readiness hardening completed on
+2026-07-08. H2 wallet creation is complete. M6 public testnet remains blocked
+on test TAO and human-signed extrinsics.
 
 This runbook uses Dolores branding on-chain where a subnet identity/name is
 needed. It never uses mainnet. Every command that signs or spends test TAO is
@@ -16,17 +18,33 @@ marked `LEON ONLY`.
 
 ## Current Gate
 
-M4 preflight currently stops at H2:
+M4 preflight no longer stops at H2. The `dolores-test` wallet and three hotkeys
+exist locally under `~/.bittensor/wallets/`, and `configs/testnet.json` contains
+only public fields. M4 wire mode has run locally via Bittensor Axon/Dendrite.
+Test TAO is still missing, so M6 public testnet registration remains blocked on
+H3/H4/H6.
 
 ```bash
-.venv/bin/python scripts/preflight.py --mode wire
-# FAIL wallet existence: wallet files missing; STOP-LEON H2 create testnet-only wallet/hotkeys.
+.venv/bin/python scripts/preflight.py --mode wire \
+  --wallet.name dolores-test --wallet.hotkey validator
+# PASS wallet existence: wallet dolores-test/validator exists (not read)
 ```
 
-## H2 - Wallets (LEON ONLY)
+## H2 - Wallets
 
-Create a brand-new testnet-only coldkey and three hotkeys. Do not reuse funded,
-production, or Dolores company keys.
+Completed on 2026-07-07 as a testnet-only local wallet. The wallet was created
+non-interactively for speed at the hackerhouse, with no secrets printed or
+stored in the repo. Do not reuse these keys for mainnet, production funds, or
+Dolores company custody.
+
+Public fields currently recorded in `configs/testnet.json`:
+
+- Coldkey: `5ELE5RrYaxhRLoumvMenr2rSqpZZLX4nxNnYA5B7mLLNJHVG`
+- Validator hotkey: `5DyNfBdYMMUMiSRNpVCWPm7Lfoexa2A7z7L11QCMMdEmCLdm`
+- Miner 0 hotkey: `5FHE1ZpqMVWS3wyjbTmqDP4obyT1UhJ5fmzJWkf8noAVxkEA`
+- Miner 1 hotkey: `5DhPKfTfbN5nwTx3riEQz5TPZH94PV8GLV8oqFMyFG61ZkQg`
+
+Equivalent manual commands for a fresh machine:
 
 ```bash
 btcli wallet new-coldkey --wallet.name dolores-test
@@ -45,26 +63,49 @@ After this, rerun:
 
 If macOS prompts when axon ports bind later, STOP-LEON H1: click **Allow**.
 
-## M4 - Wire Mode After H2/H1
+## M4 - Wire Mode
 
-Expected future commands once wallets exist:
+Completed commands:
 
 ```bash
-.venv/bin/python neurons/miner.py --mode wire --persona honest --port 8091 \
-  --wallet.name dolores-test --wallet.hotkey miner-0
+.venv/bin/python neurons/miner.py --mode wire --persona honest --quota 2 \
+  --seed 201 --port 8091 --wallet.name dolores-test --wallet.hotkey miner-0
 
-.venv/bin/python neurons/miner.py --mode wire --persona duplicate_spammer --port 8092 \
+.venv/bin/python neurons/miner.py --mode wire --persona duplicate_spammer \
+  --quota 2 --seed 202 --port 8092 \
   --wallet.name dolores-test --wallet.hotkey miner-1
 
 .venv/bin/python neurons/validator.py --mode wire \
-  --miner-endpoints 127.0.0.1:8091:<miner-0-ss58>,127.0.0.1:8092:<miner-1-ss58> \
-  --epoch 1 --work work/m4 --wallet.name dolores-test --wallet.hotkey validator
+  --miner-endpoints 127.0.0.1:8091:5FHE1ZpqMVWS3wyjbTmqDP4obyT1UhJ5fmzJWkf8noAVxkEA,127.0.0.1:8092:5DhPKfTfbN5nwTx3riEQz5TPZH94PV8GLV8oqFMyFG61ZkQg \
+  --epoch 1 --quota 2 --work work/m4_wire \
+  --wallet.name dolores-test --wallet.hotkey validator \
+  --timeout 45
 
-.venv/bin/python scripts/report.py --work work/m4 --epoch 1
+.venv/bin/python scripts/report.py --work work/m4_wire --epoch 1
+.venv/bin/python scripts/report.py --work work/m4_wire --epoch 1 --replay-check 1
 ```
 
-M4 is not complete until both miners are reached over axon/dendrite and the
-kill test records one unreachable miner without aborting the epoch.
+M4 completion evidence:
+
+- Both miners were reached over axon/dendrite.
+- Honest miner received weight `1.0`; duplicate-spammer received `0.0`.
+- Docker-backed Dolores verification ran with `containerized=true`.
+- Replay check passed.
+- Kill test stopped miner 1, recorded it as terminal `unreachable` with no
+  package hash, did not mark the epoch degraded, and did not abort.
+- Miner-supplied reserved control keys such as `wire_error` are rejected as
+  `invalid`; they cannot self-declare `infra_error`.
+- Aggregate wire responses above `MAX_RESPONSE_BYTES` are terminal `invalid`
+  outcomes before task validation.
+
+Artifacts:
+
+- `work/m4_hardening_wire/subnet_archive/epochs/epoch_1/report_epoch_1.md`
+- `work/m4_hardening_kill/subnet_archive/epochs/epoch_1/report_epoch_1.md`
+- `work/m4_wire/subnet_archive/epochs/epoch_1/report_epoch_1.md`
+- `work/m4_wire_kill/subnet_archive/epochs/epoch_1/report_epoch_1.md`
+- `docs/diary/2026-07-08-m4-wire.md`
+- `docs/diary/2026-07-08-m4-hardening.md`
 
 ## M5 - Localnet Rehearsal
 

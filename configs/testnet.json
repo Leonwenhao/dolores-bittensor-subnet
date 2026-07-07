@@ -1,0 +1,22 @@
+{
+  "name": "Dolores Autocurricula",
+  "network": "test",
+  "status": "wallets_ready_waiting_for_test_tao",
+  "netuid": null,
+  "wallet_name": "dolores-test",
+  "coldkey_ss58": "5ELE5RrYaxhRLoumvMenr2rSqpZZLX4nxNnYA5B7mLLNJHVG",
+  "validator": {
+    "hotkey_name": "validator",
+    "hotkey_ss58": "5DyNfBdYMMUMiSRNpVCWPm7Lfoexa2A7z7L11QCMMdEmCLdm"
+  },
+  "miners": [
+    {
+      "hotkey_name": "miner-0",
+      "hotkey_ss58": "5FHE1ZpqMVWS3wyjbTmqDP4obyT1UhJ5fmzJWkf8noAVxkEA"
+    },
+    {
+      "hotkey_name": "miner-1",
+      "hotkey_ss58": "5DhPKfTfbN5nwTx3riEQz5TPZH94PV8GLV8oqFMyFG61ZkQg"
+    }
+  ]
+}

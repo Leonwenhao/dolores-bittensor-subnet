@@ -1183,14 +1183,14 @@ cat tests/fixtures/planted/good_parser/task.yaml | head -40
 .venv/bin/python scripts/report.py --work work/demo --epoch 1
 
 # 4. The evidence trail (this is the moat) — python module, no duckdb CLI needed:
-.venv/bin/python -c "import duckdb; c=duckdb.connect('work/demo/archive.duckdb'); \
+.venv/bin/python -c "import duckdb; c=duckdb.connect('work/demo/subnet_archive/archive.duckdb'); \
   print(c.sql('SELECT task_id, lifecycle_status FROM tasks')); \
   print(c.sql('SELECT status, containerized, executed FROM verification_runs'))"
-tail -3 work/demo/submissions.jsonl | jq .
+tail -3 work/demo/subnet_archive/submissions.jsonl | jq .
 
 # 5. Chain proof (if testnet live): weights on the public testnet
 btcli subnet metagraph --netuid <N> --network test        # live, or:
-jq .weight_result work/m6/epochs/epoch_1/weights_epoch_1.json
+jq .weight_result work/m6/subnet_archive/epochs/epoch_1/weights_epoch_1.json
 #   -> {"mode":"chain","receipt":{...}} under tier (a),
 #      {"mode":"fallback","reason":"..."} under tier (b) — narrate accordingly
 ```
@@ -1311,9 +1311,10 @@ schema/size/hash/quota/dup-in-epoch) — zero, cheap, no execution;
 `review` (too_easy/too_hard/dup ≥ 0.85) — zero weight in v0 but archived as
 negative examples; `infra_error` — no penalty, EMA carried forward per §2.6,
 epoch flagged degraded, and the archived rows purged (`purge_task`) so an
-identical resubmission next epoch validates cleanly. Strikes: ≥ 3 safety strikes
-across epochs → miner quota drops to 1 (implemented in `gates.py` from
-`miner_state.json`; simple, visible, documented).
+identical resubmission next epoch validates cleanly. Strikes are deferred as of
+the 2026-07-08 M4 hardening pass: until they are implemented, repeated safety
+offenders are still zeroed per epoch but their quota remains the configured
+default.
 
 ### 9.5 Anti-spam in testnet form
 
@@ -1321,8 +1322,8 @@ Per-miner quota (4/epoch, deterministic truncation) — **the only bound on
 validator compute in v0** (see §2.6's dedup honesty note: exact-hash dedup
 catches only byte-identical resubmissions; task_id-mutated copies each cost a
 full Docker validation before the semantic duplicate gate rejects them); top-k
-aggregation; archive duplicate gate with reject/review thresholds; strike
-system; size caps. Reputation queues, family-coverage steering, embedding
+aggregation; archive duplicate gate with reject/review thresholds; deferred
+strike system; size caps. Reputation queues, family-coverage steering, embedding
 novelty, semantic pre-gate dedup — explicitly deferred.
 
 ### 9.6 Mock vs. must-be-real for demo credibility
@@ -1415,5 +1416,39 @@ epoch dirs with `weights_epoch_*.json` + reports; public-safe `exports/`.
 
 ## 13. Deviations Appendix
 
-(Empty at plan creation. Agents append dated entries here when reality forces a
-change; each entry names the milestone, the deviation, and the approval trail.)
+Agents append dated entries here when reality forces a change; each entry names
+the milestone, the deviation, and the approval trail.
+
+### 2026-07-08 — M4 wire module and chain seam
+
+The implementation uses `src/dolores_subnet/wire.py` for the Bittensor
+`bt.Synapse` subclass plus local axon/dendrite helpers instead of the original
+`synapse.py` filename. `src/dolores_subnet/chain.py` now exists as the explicit
+non-signing chain seam with `ChainClient` and `NullChain`. Real
+`SubtensorChain`/`set_weights` code remains deferred to M5/M6 and still requires
+STOP-LEON approval before any signing or public testnet action. Approval trail:
+Fable conformance review dated 2026-07-08 and the M4 hardening diary.
+
+### 2026-07-08 — M4 unreachable and oversized wire response semantics
+
+Unreachable miners are no longer represented by synthetic task payloads. The
+validator records an out-of-band terminal outcome with `status="unreachable"`,
+`task_value=0.0`, no package hash, and a reason containing the observed
+transport failure. This status decays through the normal EMA path and does not
+set `degraded=true`; `infra_error` is reserved for validator/Docker/backend
+infrastructure failures. Oversized aggregate wire responses are likewise
+validator-observed terminal `invalid` outcomes, not `infra_error`.
+
+### 2026-07-08 — M2/M6 strikes explicitly deferred
+
+The earlier §9.4 wording claimed the strike system was implemented in
+`gates.py`; that was inaccurate. Strikes are explicitly deferred until a later
+anti-spam pass. Current behavior is per-epoch zeroing plus quota and duplicate
+gates only.
+
+### 2026-07-08 — M7 demo paths corrected
+
+The copy-paste demo commands in §7.2 are superseded by
+`docs/hackerhouse/demo-script.md`. Actual artifacts live under
+`work/<run>/subnet_archive/...`, including `archive.duckdb`, `submissions.jsonl`,
+and `epochs/epoch_<N>/weights_epoch_<N>.json`.

@@ -50,6 +50,23 @@ def test_infra_error_is_purged_and_not_penalized(tmp_path, monkeypatch) -> None:
         assert db.show_task(task.task_id) is None
 
 
+def test_reserved_wire_error_key_is_invalid_not_infra_error(tmp_path, monkeypatch) -> None:
+    cfg = _cfg(tmp_path)
+    payload = to_wire(_task())
+    payload["wire_error"] = "docker unavailable"
+
+    def forbidden_pipeline(*args, **kwargs):
+        del args, kwargs
+        raise AssertionError("reserved wire_error should fail before pipeline execution")
+
+    monkeypatch.setattr(bridge, "run_task_pipeline", forbidden_pipeline)
+    outcome = bridge.validate_submission(payload, cfg, context=GateContext())
+
+    assert outcome.status == "invalid"
+    assert outcome.reason == "invalid:reserved_key:wire_error"
+    assert outcome.task_value == 0.0
+
+
 def test_safety_rejection_is_not_purged(tmp_path, monkeypatch) -> None:
     from dolores.archive.db import ArchiveDB
     from dolores.schemas.result import SafetyFinding
@@ -73,6 +90,26 @@ def test_safety_rejection_is_not_purged(tmp_path, monkeypatch) -> None:
         # overfitted to implementation details.
         db.add_task(task)
         assert db.show_task(task.task_id) is not None
+
+
+def test_docker_mode_cannot_accept_non_containerized_result(tmp_path, monkeypatch) -> None:
+    task = _task()
+    cfg = SubnetConfig.from_env(mode="offline", work_dir=tmp_path)
+    fake = _fake_pipeline_result(
+        task,
+        executed=True,
+        fallback_reason=None,
+        verification_status="passed",
+        lifecycle_status="accepted",
+        aggregate_score=0.8,
+        containerized=False,
+    )
+    monkeypatch.setattr(bridge, "run_task_pipeline", lambda *args, **kwargs: fake)
+
+    outcome = bridge.validate_submission(to_wire(task), cfg, context=GateContext())
+
+    assert outcome.status == "infra_error"
+    assert outcome.reason == "docker accepted without containerized execution"
 
 
 def test_public_safe_archive_copy_removes_hidden_tests(tmp_path) -> None:
@@ -103,6 +140,10 @@ def _fake_pipeline_result(
     executed: bool,
     fallback_reason: str | None,
     safety_findings=None,
+    verification_status: str | None = None,
+    lifecycle_status: str = "rejected",
+    aggregate_score: float = 0.0,
+    containerized: bool = False,
 ):
     from dolores.pipeline import PipelineResult
     from dolores.schemas.result import EvalResult, VerificationResult
@@ -114,12 +155,12 @@ def _fake_pipeline_result(
         backend="docker",
         requested_backend="docker",
         execution_mode="generated",
-        status="rejected" if safety_findings else "failed",
+        status=verification_status or ("rejected" if safety_findings else "failed"),
         duration_ms=0,
         public_tests_passed=False,
         hidden_tests_passed=False,
         logs_hash="0" * 64,
-        containerized=False,
+        containerized=containerized,
         executed=executed,
         fallback_reason=fallback_reason,
         safety_findings=safety_findings or [],
@@ -129,8 +170,8 @@ def _fake_pipeline_result(
         task_hash=task.stable_hash(),
         solve_rate=0.0,
         frontier_status="broken",
-        lifecycle_status="rejected",
-        aggregate_score=0.0,
+        lifecycle_status=lifecycle_status,
+        aggregate_score=aggregate_score,
         components=ScoreComponents(
             frontier_difficulty=0.0,
             verifier_quality=0.0,

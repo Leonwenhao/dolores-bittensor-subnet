@@ -16,6 +16,9 @@ from dolores_subnet.gates import GateContext, run_pre_gates
 from dolores_subnet.packaging import materialize
 from dolores_subnet.scoring import task_value_from_score
 
+RESERVED_WIRE_KEYS = frozenset({"wire_error"})
+NON_CONTAINERIZED_ALLOWED_STATUSES = frozenset({"rejected", "review", "invalid", "infra_error"})
+
 
 @dataclass(frozen=True)
 class SubmissionOutcome:
@@ -58,6 +61,19 @@ def validate_submission(
     miner_hotkey: str = "local-miner",
 ) -> SubmissionOutcome:
     archive.init_archive(cfg)
+    reserved = RESERVED_WIRE_KEYS.intersection(wire)
+    if reserved:
+        key_list = ",".join(sorted(reserved))
+        package = wire.get("package", {})
+        package_task_id = package.get("task_id") if isinstance(package, dict) else None
+        return SubmissionOutcome(
+            status="invalid",
+            task_id=str(wire.get("task_id", package_task_id or "unknown")),
+            package_hash=wire.get("package_hash"),
+            task_value=0.0,
+            gates={"reserved_keys": False},
+            reason=f"invalid:reserved_key:{key_list}",
+        )
     gate_context = context or GateContext(quota=cfg.quota)
     decision = run_pre_gates(wire, cfg, gate_context, miner_hotkey=miner_hotkey)
     task_id = str(wire.get("task_id", wire.get("package", {}).get("task_id", "unknown")))
@@ -148,6 +164,19 @@ def _outcome_from_pipeline(
     reason = lifecycle
     if verification.status == "failed" and verification.executed:
         reason = "verification failed"
+    if cfg.backend == "docker" and not verification.containerized:
+        if lifecycle not in NON_CONTAINERIZED_ALLOWED_STATUSES:
+            if task_hash:
+                archive.purge_task(cfg.archive_db, task_hash)
+            return SubmissionOutcome(
+                status="infra_error",
+                task_id=task_id,
+                package_hash=task_hash,
+                task_value=0.0,
+                gates=gates,
+                verification_summary=summary,
+                reason="docker accepted without containerized execution",
+            )
     return SubmissionOutcome(
         status=lifecycle,
         task_id=task_id,

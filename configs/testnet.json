@@ -1,21 +1,35 @@
 {
   "name": "Dolores Autocurricula",
   "network": "test",
-  "status": "funded_no_public_subnet_registered",
-  "netuid": null,
+  "status": "public_testnet_registered_started_staked_waiting_for_validator_permit",
+  "netuid": 523,
   "wallet_name": "dolores-test",
   "coldkey_ss58": "5ELE5RrYaxhRLoumvMenr2rSqpZZLX4nxNnYA5B7mLLNJHVG",
   "balance": {
     "network": "test",
-    "free_tao": 10.0,
+    "free_tao": null,
     "staked_tao": 0.0,
-    "total_tao": 10.0,
-    "source": "operator-reported 2026-07-08"
+    "staked_alpha_netuid_523": 22.200467971,
+    "total_balance_observed": 16.724399976,
+    "source": "btcli wallet overview --wallet-name dolores-test --netuid 523 --network test --json-output, 2026-07-08 after public registration and stake"
   },
-  "public_subnet_registered": false,
+  "public_subnet_registered": true,
   "validator_permit": false,
-  "chain_client": "SubtensorChain read-only/dry-run implemented; live set_weights gated, never executed on public networks (one localnet-only submission 2026-07-08, read-back blocked by commit-reveal)",
-  "commit_reveal_policy": "Public live weights require verified commit_reveal_enabled=false or explicit --allow-commit-reveal; commit-reveal receipts are not immediate metagraph read-back evidence",
+  "public_testnet": {
+    "netuid": 523,
+    "create_extrinsic": "7512866-7",
+    "start_extrinsic": "7512878-7",
+    "miner_0_register_extrinsic": "7512886-6",
+    "miner_1_register_extrinsic": "7512893-7",
+    "validator_stake_extrinsic": "7512943-6",
+    "commit_reveal_toggle_extrinsic": "7512952-7",
+    "commit_reveal_weights_enabled": false,
+    "validator_uid": 0,
+    "miner_0_uid": 1,
+    "miner_1_uid": 2
+  },
+  "chain_client": "SubtensorChain read-only/dry-run/live gates implemented; public subnet is registered and staked, but public live set_weights has not executed yet",
+  "commit_reveal_policy": "Public netuid 523 has commit_reveal_weights_enabled=false as of the 2026-07-08 read-back; if it flips true later, live weights require explicit --allow-commit-reveal and are commit evidence rather than immediate metagraph read-back evidence",
   "validator": {
     "hotkey_name": "validator",
     "hotkey_ss58": "5DyNfBdYMMUMiSRNpVCWPm7Lfoexa2A7z7L11QCMMdEmCLdm"

@@ -131,7 +131,7 @@ def docker_daemon_check() -> tuple[str, str]:
     completed = run_command([docker, "version", "--format", "{{.Server.Version}}"], timeout=30)
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout).strip()
-        return result("FAIL", f"Docker daemon unavailable: {detail}; STOP-LEON H1")
+        return result("FAIL", f"Docker daemon unavailable: {detail}; operator action required")
     return result("PASS", f"server {completed.stdout.strip()}")
 
 
@@ -196,7 +196,7 @@ def ports_check(ports: tuple[int, ...] = DEFAULT_AXON_PORTS) -> tuple[str, str]:
     return result(
         "PASS",
         f"ports {','.join(str(port) for port in ports)} bindable; "
-        "NOTE first axon bind may trigger macOS firewall prompt (STOP-LEON H1)",
+        "NOTE first axon bind may trigger a macOS firewall prompt",
     )
 
 
@@ -211,7 +211,7 @@ def wallet_exists_check(cfg: SubnetConfig) -> tuple[str, str]:
     if missing:
         return result(
             "FAIL",
-            "wallet files missing; STOP-LEON H2 create testnet-only wallet/hotkeys. "
+            "wallet files missing; create testnet-only wallet/hotkeys before chain mode. "
             f"Missing: {', '.join(missing)}",
         )
     return result("PASS", f"wallet {cfg.wallet_name}/{cfg.wallet_hotkey} exists (not read)")

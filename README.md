@@ -1,94 +1,183 @@
-# Dolores Bittensor Subnet
+# Dolores Autocurricula
 
-Testnet subnet scaffold for Dolores Autocurricula.
+**The open proving ground for AI's training curriculum.**
 
-## Thesis
+A Bittensor subnet that pays for *verified task supply*. Miners produce
+software tasks with hidden tests; the validator proves each task is real,
+deduplicated, and hard — then rewards the tasks worth keeping.
 
-Dolores is the supply side of the RL-agent economy. Solver subnets reward
-agents for solving tasks; this subnet rewards miners for producing verifiable,
-frontier-calibrated software tasks that can enter an open curriculum archive.
+- Network: Bittensor public **testnet**, netuid **523**
+- Status: registered, started, validator staked (validator permit pending)
+- Tests: 68 passing locally with the Dolores engine, public CI smoke enabled,
+  `ruff` clean
+- Repo: https://github.com/Leonwenhao/dolores-bittensor-subnet
+- Canonical status & on-chain evidence: [`docs/testnet-status.md`](docs/testnet-status.md)
 
-The v0 testnet goal is intentionally narrow:
+---
 
-1. Miner proposes a Dolores task package.
-2. Validator verifies it through the Dolores backend.
-3. Validator scores validity, verifier strength, novelty, and frontier value.
-4. Accepted tasks are written to an archive.
-5. Miner weights reflect marginal archive value, not volume.
+## Why this exists
 
-Mainnet economics are out of scope until the testnet loop is reproducible.
+Reinforcement-learning *environments* are abundant. What is scarce is the thing
+labs actually pay for: **verified, deduplicated, frontier-calibrated tasks** —
+problems with trustworthy graders, no contamination, and difficulty that tracks
+the model frontier. Frontier labs spend on the order of a billion dollars a year
+sourcing and cleaning RL environments, and most of that spend goes to
+*verification and curation*, not to generating more raw problems.
 
-## Repository Layout
+Solver subnets reward agents for **solving** benchmarks. Dolores rewards the
+opposite side of the market: **producing** the benchmarks. A miner's job is to
+supply a task package — a coding problem with public and hidden tests, a
+reference solution, and metadata — that survives an adversarial verification
+gauntlet. Volume alone earns nothing; a miner who spams duplicates or ships
+tasks with broken graders scores zero.
 
-- `docs/imported/` - copied source context from Dolores Autocurricula and Fable.
-- `docs/architecture/` - subnet MVP plan and implementation decisions.
-- `docs/hackerhouse/` - short pitch material for Bittensor conversations.
-- `src/dolores_subnet/` - protocol, packaging, gates, bridge, scoring, archive, and epoch code.
-- `neurons/` - miner and validator entrypoints.
-- `scripts/` - local simulation utilities.
-- `tests/` - lightweight tests for repo scaffolding.
+The incentive structure doubles as free red-teaming. Duplicate-spam pressure,
+contamination pressure, and wrong-solution probes are exactly the attacks a
+curriculum pipeline must survive to be trustworthy — so the network's
+adversaries continuously harden the curation logic instead of degrading it.
 
-## Imported Context
+Dolores Autocurricula is the open, public supply side of Dolores Research's
+broader curriculum layer. It complements solver subnets (which reward solving
+benchmarks) by rewarding the creation of the benchmarks those solvers need, and
+the durable output — a verified, deduplicated task archive — is useful well
+outside crypto.
 
-Start with:
+## Current status
 
-- `docs/imported/fable-bittensor-subnet-research.md`
-- `docs/imported/dolores-current-state.md`
-- `docs/imported/dolores-business-context-2026-07-07.md`
-- `docs/architecture/testnet-mvp-plan.md`
-- `docs/hackerhouse/pitch.md`
+Honest snapshot. Full evidence in [`docs/testnet-status.md`](docs/testnet-status.md).
 
-## Current Status
+| Milestone | State |
+|---|---|
+| Subnet created on testnet (netuid 523) | done |
+| Emission schedule started | done |
+| Miners registered (uid 1, uid 2) | done |
+| Validator staked (uid 0) | done |
+| Commit-reveal verified off | done |
+| Validator permit granted | pending (expected at a tempo boundary) |
+| First public live weights | pending (blocked on permit) |
 
-This repo now has the offline demo-floor loop and the M4 localhost wire
-rehearsal: planted fixtures, Bittensor axon/dendrite transport, Docker-backed
-validation, scoring, EMA weights, archive evidence, and a replayable leaderboard.
-It intentionally reuses Dolores Autocurricula as the task/verifier/scorer backend
-instead of re-implementing that logic inside the subnet.
+There are **no live public weights yet**. The chain-write path has been fully
+rehearsed on a local substrate node — including a live `set_weights` accepted by
+the node and a deterministic replay — but nothing has been written to the public
+metagraph. See the rehearsal appendix in the status doc.
 
-The testnet coldkey has 10.0 test TAO on `--network test`, but no public subnet
-is registered yet, there is no validator permit, and there are no live on-chain
-weights. The M6 chain-readiness layer now has read-only and dry-run
-`SubtensorChain` support; live `set_weights` remains behind explicit
-STOP-LEON gates and has never been executed on any public network. One
-Leon-authorized localnet-only live submission was accepted by a local
-substrate node on 2026-07-08 (read-back blocked by commit-reveal; see
-`docs/diary/2026-07-08-m5-full-localnet.md`). Current local artifacts are
-fallback, dry-run, or localnet artifacts, not public testnet receipts.
-Public registration can proceed when Leon approves the spend/signing steps.
-Public live weights require either verified commit-reveal-off state or explicit
-`--allow-commit-reveal`; commit-reveal receipts are commit evidence, not
-immediate metagraph read-back evidence.
+## How it works
 
-Expected local dependency:
+Two roles talk over signed Bittensor axon/dendrite transport.
 
-```bash
-export DOLORES_REPO="/Users/leonliu/Desktop/Dolores Autocurricula"
+- **Miner** supplies a Dolores task package: an RL coding-agent task with public
+  tests, hidden tests, a reference solution, and metadata.
+- **Validator** runs each package through a verification pipeline and turns the
+  results into on-chain weights.
+
+```
+ miner task package
+        │
+        ▼
+ ┌──────────────────────────────────────────────────────────┐
+ │ VALIDATION PIPELINE                                        │
+ │                                                            │
+ │  safety screen  →  deterministic Docker verification       │
+ │       │                    │                               │
+ │   (reject unsafe)     (reference must pass public+hidden)  │
+ │                            │                               │
+ │            wrong-solution probes (bad code must FAIL)       │
+ │                            │                               │
+ │                     duplicate / dedup gate                 │
+ │                            │                               │
+ │                          scoring                           │
+ │                            │                               │
+ │                    EMA  →  normalized weights              │
+ └──────────────────────────────────────────────────────────┘
+        │                             │
+        ▼                             ▼
+ deterministic weights file    volatile chain receipt
+ (replayable)                  (extrinsic / read-back)
 ```
 
-## Local Smoke
+A task that passes every gate scores toward `1.0`; a duplicate or an invalid
+task collapses to `0.0`. Scores feed an exponential moving average, which is
+normalized into the weight vector. Every epoch writes two separate artifacts:
+a **deterministic weights file** (byte-reproducible, replayable) and a
+**volatile chain receipt** (the extrinsic outcome). Splitting them keeps the
+scoring provable independent of chain conditions.
+
+Architecture detail: [`docs/architecture.md`](docs/architecture.md).
+
+## Quickstart
+
+Run the full validator loop locally — no wallet, no chain, no keys. It exercises
+an honest miner, a duplicate-spammer, and an invalid miner, and shows the honest
+task winning all the weight.
 
 ```bash
-.venv/bin/python scripts/preflight.py --mode offline
-.venv/bin/python scripts/local_epoch.py --mode offline \
-  --miners honest,honest,duplicate_spammer,invalid --quota 2 --epoch 1 --work work/m3_demo
-.venv/bin/python scripts/report.py --work work/m3_demo --epoch 1
-.venv/bin/python scripts/report.py --work work/m3_demo --epoch 1 --replay-check 1
-
-tail -3 work/m3_demo/subnet_archive/submissions.jsonl | jq .
-jq .weight_result work/m3_demo/subnet_archive/epochs/epoch_1/weights_epoch_1.json
+python scripts/local_epoch.py --mode offline \
+  --miners honest,duplicate_spammer,invalid --quota 1 --epoch 1 \
+  --work work/demo
+python scripts/report.py --work work/demo --epoch 1
+python scripts/report.py --work work/demo --epoch 1 --replay-check 1
 ```
 
-## Immediate Build Path
+Expected: the honest miner takes `weight=1.0`, both adversaries take `0.0`, and
+the replay check prints `REPLAY OK`. Full walkthrough — including the two-miner
+wire demo and the kill test — in [`docs/demo.md`](docs/demo.md).
 
-1. Use `docs/hackerhouse/demo-script.md` for the locked hackerhouse path.
-2. Run M5 localnet rehearsal where Leon approves signing actions at the keyboard.
-3. Keep public testnet blocked at H4/H6 until netuid, registrations, permit, and receipts exist.
+## Requirements
 
-## Non-Goals For Testnet MVP
+- Python 3.11
+- Docker (the verifier runs each task in a container)
+- `bittensor` SDK (wallets and axon/dendrite transport)
+- The Dolores Autocurricula engine, referenced via an environment variable —
+  the subnet deliberately reuses that backend for task schemas, verification,
+  and scoring rather than re-implementing it:
 
-- No mainnet registration.
-- No 2k task generation.
-- No paid solver-panel dependency for the first demo.
-- No complex multi-role market.
-- No secret material in this repo.
+  ```bash
+  export DOLORES_REPO="<path-to-dolores-autocurricula>"
+  ```
+
+## Repository layout
+
+- `src/dolores_subnet/` — protocol, packaging, gates, bridge to the Dolores
+  engine, scoring, EMA/weights, archive, epoch driver, wire transport, chain layer.
+- `neurons/` — miner and validator entrypoints.
+- `scripts/` — preflight checks, local epoch driver, reporting/replay.
+- `tests/` — protocol, gates, scoring, chain-client, and import-discipline tests.
+- `configs/` — machine-readable network status (`testnet.json`).
+- `docs/` — status, architecture, roadmap, and demo.
+
+## Current limitations
+
+Stated plainly:
+
+- **Testnet only.** No mainnet registration or economics.
+- **First-party miners at launch.** The two registered miners are operated by
+  the project; external miners are on the roadmap.
+- **Weights are not yet live on the public chain.** The write path is rehearsed
+  and gated, not exercised publicly.
+- **Scores do not yet claim training-value prediction.** The current score
+  proves a task is safe, verifiable, non-duplicate, and frontier-signaled — not
+  that it improves downstream training. Validating score → training value is
+  explicit future work.
+
+## Roadmap
+
+Near term: validator permit → first public live weights → published read-back
+evidence. Mid term: external miners and onboarding, task-family coverage
+steering, verifier-quality leaderboard. Long term: mainnet consideration,
+curriculum archive exports, and downstream training ablations. Detail in
+[`docs/roadmap.md`](docs/roadmap.md).
+
+## Contributing
+
+Task authors wanted. A good task package is **verifiable** (a reference solution
+that passes public *and* hidden tests deterministically in Docker),
+**adversary-resistant** (wrong solutions fail the hidden tests), **novel** (not
+a duplicate of an archived task), and **frontier-relevant** (hard enough to
+matter). See `CONTRIBUTING.md` for what to build and how submissions are scored.
+
+## Chain-safety note
+
+The chain layer is fail-closed by construction: writes default to **off**, there
+is a dry-run tier, four independent gates guard any live extrinsic, and
+commit-reveal state is detected in a way that fails closed. Nothing here writes
+to a public chain without explicit, multi-gate authorization.

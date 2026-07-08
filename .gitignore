@@ -13,6 +13,7 @@ build/
 # Never commit credentials or chain keys.
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 wallets/
@@ -26,3 +27,13 @@ logs/
 archive.duckdb
 *.duckdb
 
+
+# Internal engineering log and launch workroom (kept local, not part of the public tree).
+docs/diary/
+docs/reviews/
+docs/runbooks/
+docs/imported/
+docs/hackerhouse/
+docs/architecture/
+docs/strategy/
+docs/launch/

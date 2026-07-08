@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 from dolores_subnet.config import SubnetConfig, assert_safe_network
 
-LIVE_CONFIRMATION = "I-AM-LEON-AND-I-APPROVE"
+LIVE_CONFIRMATION = "I-UNDERSTAND-THIS-WILL-SUBMIT-WEIGHTS"
 CHAIN_PUBLISH_MODES = {"off", "dry-run", "live"}
 
 

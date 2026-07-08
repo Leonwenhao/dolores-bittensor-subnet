@@ -9,7 +9,7 @@ from enum import StrEnum
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DOLORES_REPO = Path("/Users/leonliu/Desktop/Dolores Autocurricula")
+DEFAULT_DOLORES_REPO = REPO_ROOT.parent / "Dolores Autocurricula"
 
 SPEC_VERSION = 1
 SCHEMA_VERSION = "dolores-subnet-v0"

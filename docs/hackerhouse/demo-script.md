@@ -5,7 +5,9 @@ and M7 is packaged to run without public testnet success. The `dolores-test`
 coldkey has 10.0 test TAO on `--network test`, but no public subnet is
 registered, no validator permit exists, and no on-chain weights exist. The
 read-only/dry-run `SubtensorChain` path exists; live `set_weights` is still
-STOP-LEON gated and unexecuted.
+STOP-LEON gated and has never run on any public network (one Leon-authorized
+localnet-only submission was accepted on 2026-07-08; read-back was blocked by
+commit-reveal).
 
 Do not run public-chain write commands during this demo. Do not run `btcli
 subnet create`, `btcli subnet register`, `btcli stake add`, `set_weights`, or

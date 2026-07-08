@@ -293,6 +293,14 @@ a failure of miner scoring.
 
 ## Phase 8 — LEON: live set_weights through all four gates
 
+> **HEAD behavior change (ba65010):** since the fresh localnet subnet is born
+> `commit_reveal_enabled=true`, the validator now fail-closed **skips** this
+> phase with `reason "commit_reveal_enabled"` unless you either disabled
+> commit-reveal in phase 6.5 or add `--allow-commit-reveal` to the command
+> below. With `--allow-commit-reveal` under commit-reveal, expect
+> `reason "submitted_commit_reveal"` (not `submitted_ok`), and read-back stays
+> zero until the reveal ~1 tempo later.
+
 ```bash
 export DOLORES_ALLOW_EXTRINSICS=1
 
@@ -315,7 +323,12 @@ Acceptance:
 ```bash
 jq '{mode, reason, submission}' \
   work/m5_full/live/subnet_archive/epochs/epoch_2/chain_receipt_epoch_2.json
-# expect: mode "submitted", reason "submitted_ok", submission.success true
+# expect (commit-reveal disabled in phase 6.5): mode "submitted",
+#   reason "submitted_ok", submission.success true
+# expect (commit-reveal still on + --allow-commit-reveal): mode "submitted",
+#   reason "submitted_commit_reveal", submission.success true
+# expect (commit-reveal still on, no --allow-commit-reveal): mode "skipped",
+#   reason "commit_reveal_enabled" — rerun with the flag or disable CR first
 # note: read_back will be null — known stub; phase 9 is the real read-back
 ```
 

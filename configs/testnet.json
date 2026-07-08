@@ -14,7 +14,8 @@
   },
   "public_subnet_registered": false,
   "validator_permit": false,
-  "chain_client": "SubtensorChain read-only/dry-run implemented; live set_weights gated and unexecuted",
+  "chain_client": "SubtensorChain read-only/dry-run implemented; live set_weights gated, never executed on public networks (one localnet-only submission 2026-07-08, read-back blocked by commit-reveal)",
+  "commit_reveal_policy": "Public live weights require verified commit_reveal_enabled=false or explicit --allow-commit-reveal; commit-reveal receipts are not immediate metagraph read-back evidence",
   "validator": {
     "hotkey_name": "validator",
     "hotkey_ss58": "5DyNfBdYMMUMiSRNpVCWPm7Lfoexa2A7z7L11QCMMdEmCLdm"

@@ -50,10 +50,20 @@ def test_mode_defaults_are_fail_closed_for_validator_modes() -> None:
     assert offline.backend == "docker"
     assert offline.pipeline_mode == "generated"
     assert offline.network is None
+    assert offline.allow_commit_reveal is False
 
     mock = SubnetConfig.from_env(mode="mock")
     assert mock.backend == "local"
     assert mock.pipeline_mode == "fixture"
+
+
+def test_commit_reveal_opt_in_loads_only_from_explicit_arg(monkeypatch) -> None:
+    assert SubnetConfig.from_env(mode="testnet").allow_commit_reveal is False
+    cfg = SubnetConfig.from_env(mode="testnet", allow_commit_reveal=True)
+    assert cfg.allow_commit_reveal is True
+
+    monkeypatch.setenv("DOLORES_ALLOW_COMMIT_REVEAL", "1")
+    assert SubnetConfig.from_env(mode="testnet").allow_commit_reveal is False
 
 
 def test_plan_constants_are_single_source_values() -> None:

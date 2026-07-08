@@ -6,6 +6,11 @@ has 10.0 test TAO on `--network test`. No public subnet is registered yet. M6
 chain-readiness now has a tested read-only and dry-run `SubtensorChain` path.
 M6 public testnet remains blocked on netuid creation, registration, validator
 permit, and Leon-approved signing/spend extrinsics.
+Public subnet registration can proceed once Leon approves the
+create/start/register/stake sequence. Public live weights require either
+verified `commit_reveal_enabled=false` or an explicit validator
+`--allow-commit-reveal` opt-in; commit-reveal submissions are not immediate
+metagraph read-back evidence.
 
 This runbook uses Dolores branding on-chain where a subnet identity/name is
 needed. It never uses mainnet. Every command that signs or spends test TAO is
@@ -223,6 +228,12 @@ Preconditions:
   cost.
 - H6 Leon is at the keyboard for every extrinsic.
 
+Registration can proceed before the live-weight commit-reveal decision is
+closed. Do not run a public live-weight epoch until either read-only
+preflight/hyperparameters show `commit_reveal_enabled=false`, or Leon
+explicitly chooses the commit-reveal path and the validator command includes
+`--allow-commit-reveal`.
+
 Read-only diagnostics the agent may run:
 
 ```bash
@@ -270,14 +281,27 @@ Dry-run the exact weight payload before any live write:
   --wallet.name dolores-test --wallet.hotkey validator
 ```
 
+If commit-reveal is enabled and Leon has chosen the commit-reveal path, add
+the explicit dry-run opt-in too:
+
+```bash
+.venv/bin/python neurons/validator.py --mode testnet --netuid <N> \
+  --chain dry-run --allow-commit-reveal \
+  --epoch 1 --quota 2 --work work/m6 \
+  --wallet.name dolores-test --wallet.hotkey validator
+```
+
 Expected artifact paths:
 
 - `work/m6/subnet_archive/epochs/epoch_1/weights_epoch_1.json`
 - `work/m6/subnet_archive/epochs/epoch_1/chain_receipt_epoch_1.json`
 
-The dry-run receipt has `mode: dry_run`, `reason: dry_run_ok`, the active
-hotkey-to-UID mapping, dropped hotkeys, normalized weights, emitted UID/u16
-payload, payload digest, `submission: null`, and `read_back: null`.
+When the dry-run is allowed to build a payload, its receipt has
+`mode: dry_run`, `reason: dry_run_ok`, the active hotkey-to-UID mapping,
+dropped hotkeys, normalized weights, emitted UID/u16 payload, payload digest,
+`submission: null`, and `read_back: null`. If commit-reveal is enabled and the
+opt-in flag is absent, the receipt should instead be
+`reason: commit_reveal_enabled` with `submission: null`.
 
 The live SDK weight path is **LEON ONLY** and must not be run by agents:
 
@@ -288,10 +312,35 @@ export DOLORES_ALLOW_EXTRINSICS=1
   --confirm-live I-AM-LEON-AND-I-APPROVE \
   --epoch 1 --quota 2 --work work/m6 \
   --wallet.name dolores-test --wallet.hotkey validator
+unset DOLORES_ALLOW_EXTRINSICS
 ```
 
 If any gate is missing, the validator records `mode: error` and
 `reason: extrinsics_not_allowed` instead of calling `set_weights`.
+
+If commit-reveal is enabled and `--allow-commit-reveal` is absent, the validator
+records `mode: skipped`, `reason: commit_reveal_enabled`, `submission: null`.
+If the commit-reveal probe fails or the SDK surface changes, it records
+`mode: skipped`, `reason: commit_reveal_probe_failed`, `submission: null`.
+
+If Leon explicitly chooses the commit-reveal path, add the opt-in flag while
+keeping all four live gates:
+
+```bash
+export DOLORES_ALLOW_EXTRINSICS=1
+.venv/bin/python neurons/validator.py --mode testnet --netuid <N> \
+  --chain live --allow-extrinsics --allow-commit-reveal \
+  --confirm-live I-AM-LEON-AND-I-APPROVE \
+  --epoch 1 --quota 2 --work work/m6 \
+  --wallet.name dolores-test --wallet.hotkey validator
+unset DOLORES_ALLOW_EXTRINSICS
+```
+
+A commit-reveal live receipt should record `mode: submitted`,
+`reason: submitted_commit_reveal`, and
+`chain_state.commit_reveal_enabled: true`. Treat that as commit evidence only.
+It is not immediate metagraph read-back evidence; poll after the reveal window
+before claiming visible nonzero weights.
 
 When M6 is ready, update the existing public-only `configs/testnet.json` with the
 new `netuid` and any receipt references. Keep the nested shape already in the

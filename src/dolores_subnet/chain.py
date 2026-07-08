@@ -151,7 +151,7 @@ class _Substrate:
             return None
         return max(0, self.block() - _to_int(last_updates[uid]))
 
-    def commit_reveal_enabled(self) -> bool:
+    def commit_reveal_enabled(self) -> bool | None:
         for name in (
             "commit_reveal_enabled",
             "commit_reveal_weights_enabled",
@@ -163,10 +163,13 @@ class _Substrate:
             try:
                 return bool(fn(netuid=self.netuid))
             except TypeError:
-                return bool(fn(self.netuid))
-            except Exception:  # noqa: BLE001 - unavailable hyperparams are treated as off.
+                try:
+                    return bool(fn(self.netuid))
+                except Exception:  # noqa: BLE001 - unavailable probes fail closed below.
+                    continue
+            except Exception:  # noqa: BLE001 - unavailable probes fail closed below.
                 continue
-        return False
+        return None
 
     def process_and_convert(
         self,
@@ -240,6 +243,7 @@ class SubtensorChain:
         wallet_hotkey: str,
         publish: str = "dry-run",
         allow_extrinsics: bool = False,
+        allow_commit_reveal: bool = False,
         confirmation: str = "",
         substrate: Any | None = None,
     ) -> None:
@@ -251,6 +255,7 @@ class SubtensorChain:
         self.wallet_hotkey = wallet_hotkey
         self.publish = publish
         self.allow_extrinsics = allow_extrinsics
+        self.allow_commit_reveal = allow_commit_reveal
         self.confirmation = confirmation
         self._substrate = substrate
 
@@ -287,6 +292,7 @@ class SubtensorChain:
             "weights_rate_limit": None,
             "blocks_since_last_update": None,
             "commit_reveal_enabled": None,
+            "commit_reveal_probe_failed": False,
         }
         if not subnet_exists:
             record["mode"] = "error"
@@ -302,7 +308,21 @@ class SubtensorChain:
         record["validator_permit"] = substrate.validator_permit(validator_uid)
         record["weights_rate_limit"] = substrate.weights_rate_limit()
         record["blocks_since_last_update"] = substrate.blocks_since_last_update(validator_uid)
-        record["commit_reveal_enabled"] = substrate.commit_reveal_enabled()
+        try:
+            commit_reveal_enabled = substrate.commit_reveal_enabled()
+        except Exception as exc:  # noqa: BLE001 - probe failures must fail closed.
+            record["commit_reveal_enabled"] = None
+            record["commit_reveal_probe_failed"] = True
+            record["commit_reveal_probe_error"] = str(exc)
+            record["mode"] = "error"
+            record["reason"] = "commit_reveal_probe_failed"
+            return record
+        record["commit_reveal_enabled"] = commit_reveal_enabled
+        if commit_reveal_enabled is None:
+            record["commit_reveal_probe_failed"] = True
+            record["mode"] = "error"
+            record["reason"] = "commit_reveal_probe_failed"
+            return record
         return record
 
     def map_hotkeys(self, active_hotkeys: list[str]) -> HotkeyUidMapping:
@@ -491,12 +511,17 @@ class SubtensorChain:
             )
             return ChainWeightResult(mode="error", receipt=receipt, reason="extrinsic_failed")
 
+        submit_reason = (
+            "submitted_commit_reveal"
+            if state.get("commit_reveal_enabled") is True
+            else "submitted_ok"
+        )
         read_back = self.substrate.read_back_weights(int(state["validator_uid"]))
         receipt = self._write_receipt(
             cfg,
             epoch_id=epoch_id,
             mode="submitted",
-            reason="submitted_ok",
+            reason=submit_reason,
             weights=weights,
             active_hotkeys=active_hotkeys,
             spec_version=spec_version,
@@ -506,7 +531,7 @@ class SubtensorChain:
             submission=submission,
             read_back=read_back,
         )
-        return ChainWeightResult(mode="submitted", receipt=receipt, reason="submitted_ok")
+        return ChainWeightResult(mode="submitted", receipt=receipt, reason=submit_reason)
 
     def _readiness_state(self) -> dict[str, Any]:
         state = self.preflight()
@@ -523,7 +548,10 @@ class SubtensorChain:
         since = state.get("blocks_since_last_update")
         if limit is not None and since is not None and int(since) < int(limit):
             return "rate_limited"
-        if state.get("commit_reveal_enabled", False):
+        commit_reveal_enabled = state.get("commit_reveal_enabled")
+        if commit_reveal_enabled is None or state.get("commit_reveal_probe_failed", False):
+            return "commit_reveal_probe_failed"
+        if commit_reveal_enabled and not self.allow_commit_reveal:
             return "commit_reveal_enabled"
         return None
 
@@ -658,6 +686,7 @@ def build_chain_client(
         wallet_hotkey=cfg.wallet_hotkey,
         publish=publish,
         allow_extrinsics=allow_extrinsics,
+        allow_commit_reveal=cfg.allow_commit_reveal,
         confirmation=confirmation,
         substrate=substrate,
     )
@@ -672,26 +701,73 @@ def _submission_from_response(response: Any) -> dict[str, Any]:
     if isinstance(response, dict):
         success = bool(response.get("success", response.get("is_success", False)))
         message = str(response.get("message", response.get("error", "")) or "")
-        return {
+        receipt = response.get("extrinsic_receipt")
+        submission = {
             "success": success,
             "message": message,
-            "block_hash": response.get("block_hash"),
-            "extrinsic_hash": response.get("extrinsic_hash"),
-            "included": response.get("included"),
-            "finalized": response.get("finalized"),
+            "block_hash": _json_scalar(
+                response.get("block_hash") or _metadata_value(receipt, "block_hash")
+            ),
+            "extrinsic_hash": _json_scalar(
+                response.get("extrinsic_hash") or _metadata_value(receipt, "extrinsic_hash")
+            ),
+            "included": _json_scalar(
+                response.get("included")
+                if response.get("included") is not None
+                else _metadata_value(receipt, "is_included", "included")
+            ),
+            "finalized": _json_scalar(
+                response.get("finalized")
+                if response.get("finalized") is not None
+                else _metadata_value(receipt, "is_finalized", "finalized")
+            ),
         }
-    return {
+        _add_optional_submission_field(submission, "block_number", receipt, "block_number")
+        _add_optional_submission_field(
+            submission,
+            "extrinsic_index",
+            receipt,
+            "extrinsic_idx",
+            "extrinsic_index",
+        )
+        _add_optional_submission_field(submission, "receipt_success", receipt, "is_success")
+        return submission
+    receipt = getattr(response, "extrinsic_receipt", None)
+    submission = {
         "success": bool(
             getattr(response, "success", getattr(response, "is_success", False))
         ),
         "message": str(
             getattr(response, "message", getattr(response, "error_message", "")) or ""
         ),
-        "block_hash": getattr(response, "block_hash", None),
-        "extrinsic_hash": getattr(response, "extrinsic_hash", None),
-        "included": getattr(response, "is_included", None),
-        "finalized": getattr(response, "is_finalized", None),
+        "block_hash": _json_scalar(
+            getattr(response, "block_hash", None) or _metadata_value(receipt, "block_hash")
+        ),
+        "extrinsic_hash": _json_scalar(
+            getattr(response, "extrinsic_hash", None)
+            or _metadata_value(receipt, "extrinsic_hash")
+        ),
+        "included": _json_scalar(
+            getattr(response, "is_included", None)
+            if getattr(response, "is_included", None) is not None
+            else _metadata_value(receipt, "is_included", "included")
+        ),
+        "finalized": _json_scalar(
+            getattr(response, "is_finalized", None)
+            if getattr(response, "is_finalized", None) is not None
+            else _metadata_value(receipt, "is_finalized", "finalized")
+        ),
     }
+    _add_optional_submission_field(submission, "block_number", receipt, "block_number")
+    _add_optional_submission_field(
+        submission,
+        "extrinsic_index",
+        receipt,
+        "extrinsic_idx",
+        "extrinsic_index",
+    )
+    _add_optional_submission_field(submission, "receipt_success", receipt, "is_success")
+    return submission
 
 
 def _submission_from_error(exc: Exception) -> dict[str, Any]:
@@ -709,3 +785,35 @@ def _to_int(value: Any) -> int:
     if hasattr(value, "item"):
         return int(value.item())
     return int(value)
+
+
+def _metadata_value(source: Any, *names: str) -> Any:
+    if source is None:
+        return None
+    for name in names:
+        if isinstance(source, dict):
+            value = source.get(name)
+        else:
+            value = getattr(source, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def _json_scalar(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if hasattr(value, "item"):
+        return value.item()
+    return str(value)
+
+
+def _add_optional_submission_field(
+    submission: dict[str, Any],
+    target: str,
+    source: Any,
+    *names: str,
+) -> None:
+    value = _metadata_value(source, *names)
+    if value is not None:
+        submission[target] = _json_scalar(value)

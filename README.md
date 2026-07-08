@@ -50,8 +50,15 @@ The testnet coldkey has 10.0 test TAO on `--network test`, but no public subnet
 is registered yet, there is no validator permit, and there are no live on-chain
 weights. The M6 chain-readiness layer now has read-only and dry-run
 `SubtensorChain` support; live `set_weights` remains behind explicit
-STOP-LEON gates and has not been executed. Current local artifacts are fallback
-or dry-run artifacts, not public testnet receipts.
+STOP-LEON gates and has never been executed on any public network. One
+Leon-authorized localnet-only live submission was accepted by a local
+substrate node on 2026-07-08 (read-back blocked by commit-reveal; see
+`docs/diary/2026-07-08-m5-full-localnet.md`). Current local artifacts are
+fallback, dry-run, or localnet artifacts, not public testnet receipts.
+Public registration can proceed when Leon approves the spend/signing steps.
+Public live weights require either verified commit-reveal-off state or explicit
+`--allow-commit-reveal`; commit-reveal receipts are commit evidence, not
+immediate metagraph read-back evidence.
 
 Expected local dependency:
 

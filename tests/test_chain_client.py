@@ -6,7 +6,13 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
-from dolores_subnet.chain import LIVE_CONFIRMATION, NullChain, SubtensorChain, _Substrate
+from dolores_subnet.chain import (
+    LIVE_CONFIRMATION,
+    NullChain,
+    SubtensorChain,
+    _submission_from_response,
+    _Substrate,
+)
 from dolores_subnet.config import SubnetConfig
 from dolores_subnet.epoch import assert_replay_matches, run_epoch
 
@@ -22,7 +28,8 @@ class FakeSubstrate:
         permit: bool = True,
         rate_limit: int = 0,
         blocks_since: int | None = 100,
-        commit_reveal: bool = False,
+        commit_reveal: bool | None = False,
+        commit_reveal_error: Exception | None = None,
         set_success: bool = True,
     ) -> None:
         self.hotkey_uids = hotkey_uids or {
@@ -35,6 +42,7 @@ class FakeSubstrate:
         self.rate_limit = rate_limit
         self.blocks_since = blocks_since
         self.commit_reveal = commit_reveal
+        self.commit_reveal_error = commit_reveal_error
         self.set_success = set_success
         self.set_weights_calls: list[dict[str, Any]] = []
 
@@ -58,7 +66,9 @@ class FakeSubstrate:
         del uid
         return self.blocks_since
 
-    def commit_reveal_enabled(self) -> bool:
+    def commit_reveal_enabled(self) -> bool | None:
+        if self.commit_reveal_error is not None:
+            raise self.commit_reveal_error
         return self.commit_reveal
 
     def process_and_convert(
@@ -121,6 +131,7 @@ def _chain(
     *,
     netuid: int | None = 7,
     publish: str = "dry-run",
+    allow_commit_reveal: bool = False,
 ) -> SubtensorChain:
     return SubtensorChain(
         network="test",
@@ -128,6 +139,7 @@ def _chain(
         wallet_name="dolores-test",
         wallet_hotkey="validator",
         publish=publish,
+        allow_commit_reveal=allow_commit_reveal,
         substrate=fake,
     )
 
@@ -263,6 +275,27 @@ def test_commit_reveal_enabled_skips_without_set_weights(tmp_path) -> None:
 
     assert result.mode == "skipped"
     assert result.reason == "commit_reveal_enabled"
+    receipt = _receipt(cfg)
+    assert receipt["mode"] == "skipped"
+    assert receipt["reason"] == "commit_reveal_enabled"
+    assert receipt["submission"] is None
+    assert fake.set_weights_calls == []
+
+
+def test_commit_reveal_probe_failure_skips_without_set_weights(tmp_path) -> None:
+    fake = FakeSubstrate(commit_reveal_error=RuntimeError("rpc probe failed"))
+    cfg = _cfg(tmp_path)
+
+    result = _apply(_chain(fake), cfg)
+
+    assert result.mode == "skipped"
+    assert result.reason == "commit_reveal_probe_failed"
+    receipt = _receipt(cfg)
+    assert receipt["mode"] == "skipped"
+    assert receipt["reason"] == "commit_reveal_probe_failed"
+    assert receipt["submission"] is None
+    assert receipt["chain_state"]["commit_reveal_probe_failed"] is True
+    assert "rpc probe failed" in receipt["chain_state"]["commit_reveal_probe_error"]
     assert fake.set_weights_calls == []
 
 
@@ -277,6 +310,19 @@ def test_substrate_detects_current_sdk_commit_reveal_method() -> None:
     substrate.netuid = 7
 
     assert substrate.commit_reveal_enabled() is True
+
+
+def test_substrate_commit_reveal_probe_failure_is_unknown() -> None:
+    class FakeSubtensor:
+        def commit_reveal_enabled(self, *, netuid: int) -> bool:
+            assert netuid == 7
+            raise RuntimeError("rpc down")
+
+    substrate = object.__new__(_Substrate)
+    substrate.subtensor = FakeSubtensor()
+    substrate.netuid = 7
+
+    assert substrate.commit_reveal_enabled() is None
 
 
 def test_all_zero_and_all_infra_reasons_skip(tmp_path) -> None:
@@ -356,6 +402,39 @@ def test_live_gates_block_set_weights_until_all_layers_are_present(tmp_path, mon
     assert len(fake.set_weights_calls) == 1
 
 
+def test_allow_commit_reveal_submits_with_explicit_reason(tmp_path, monkeypatch) -> None:
+    fake = FakeSubstrate(commit_reveal=True)
+    cfg = _cfg(tmp_path)
+    monkeypatch.setenv("DOLORES_ALLOW_EXTRINSICS", "1")
+
+    result = SubtensorChain(
+        network="test",
+        netuid=7,
+        wallet_name="dolores-test",
+        wallet_hotkey="validator",
+        publish="live",
+        allow_extrinsics=True,
+        allow_commit_reveal=True,
+        confirmation=LIVE_CONFIRMATION,
+        substrate=fake,
+    ).apply_weights(
+        cfg=cfg,
+        epoch_id=1,
+        weights={"miner-a": 1.0},
+        active_hotkeys=["miner-a"],
+        spec_version=cfg.spec_version,
+    )
+
+    assert result.mode == "submitted"
+    assert result.reason == "submitted_commit_reveal"
+    assert len(fake.set_weights_calls) == 1
+    receipt = _receipt(cfg)
+    assert receipt["mode"] == "submitted"
+    assert receipt["reason"] == "submitted_commit_reveal"
+    assert receipt["chain_state"]["commit_reveal_enabled"] is True
+    assert receipt["submission"]["success"] is True
+
+
 def test_live_extrinsic_failure_is_recorded_with_fake_substrate(tmp_path, monkeypatch) -> None:
     fake = FakeSubstrate(set_success=False)
     cfg = _cfg(tmp_path)
@@ -381,6 +460,41 @@ def test_live_extrinsic_failure_is_recorded_with_fake_substrate(tmp_path, monkey
     assert result.mode == "error"
     assert result.reason == "extrinsic_failed"
     assert len(fake.set_weights_calls) == 1
+
+
+def test_submission_from_response_reads_extrinsic_receipt_metadata() -> None:
+    receipt = SimpleNamespace(
+        block_hash="0xblock",
+        extrinsic_hash="0xextrinsic",
+        is_included=True,
+        is_finalized=False,
+        block_number=123,
+        extrinsic_idx=4,
+        is_success=True,
+    )
+    response = SimpleNamespace(
+        success=True,
+        message="Success",
+        block_hash=None,
+        extrinsic_hash=None,
+        is_included=None,
+        is_finalized=None,
+        extrinsic_receipt=receipt,
+    )
+
+    submission = _submission_from_response(response)
+
+    assert submission == {
+        "success": True,
+        "message": "Success",
+        "block_hash": "0xblock",
+        "extrinsic_hash": "0xextrinsic",
+        "included": True,
+        "finalized": False,
+        "block_number": 123,
+        "extrinsic_index": 4,
+        "receipt_success": True,
+    }
 
 
 def test_receipt_file_is_separate_and_replay_stays_stable(tmp_path, monkeypatch) -> None:

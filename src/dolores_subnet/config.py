@@ -193,6 +193,7 @@ class SubnetConfig:
     schema_version: str = SCHEMA_VERSION
     wallet_name: str = DEFAULT_WALLET_NAME
     wallet_hotkey: str = DEFAULT_WALLET_HOTKEY
+    allow_commit_reveal: bool = False
 
     @classmethod
     def from_env(
@@ -204,6 +205,7 @@ class SubnetConfig:
         wallet_hotkey: str | None = None,
         network: str | None = None,
         netuid: int | str | None = None,
+        allow_commit_reveal: bool | None = None,
     ) -> SubnetConfig:
         parsed_mode = parse_mode(mode or os.environ.get("DOLORES_SUBNET_MODE"))
         backend, pipeline_mode = verifier_defaults(parsed_mode)
@@ -242,6 +244,7 @@ class SubnetConfig:
             or os.environ.get("BT_WALLET_NAME", DEFAULT_WALLET_NAME),
             wallet_hotkey=wallet_hotkey
             or os.environ.get("BT_WALLET_HOTKEY", DEFAULT_WALLET_HOTKEY),
+            allow_commit_reveal=bool(allow_commit_reveal),
         )
 
     def epoch_dir(self, epoch_id: int) -> Path:

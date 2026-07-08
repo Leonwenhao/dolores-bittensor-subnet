@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--netuid", type=int, default=None)
     parser.add_argument("--chain", choices=["off", "dry-run", "live"], default="off")
     parser.add_argument("--allow-extrinsics", action="store_true")
+    parser.add_argument("--allow-commit-reveal", action="store_true")
     parser.add_argument("--confirm-live", default="")
     return parser
 
@@ -126,6 +127,7 @@ def run_chain(args: argparse.Namespace, mode: Mode) -> int:
         wallet_hotkey=args.wallet_hotkey,
         network=args.network,
         netuid=args.netuid,
+        allow_commit_reveal=args.allow_commit_reveal,
     )
     confirmation = _live_confirmation(args, cfg)
     chain_client = build_chain_client(

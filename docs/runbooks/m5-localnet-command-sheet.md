@@ -29,6 +29,12 @@ public testnet create.
   That is why phase 1 transfers 5000 τ.
 - Expected new netuid is **2** (the image preseeds 0 = root and 1 = `apex`).
   Confirm the actual value at phase 2 and use it everywhere `<N>` appears.
+- 2026-07-08 rehearsal correction: the created localnet subnet `netuid=2`
+  had `commit_reveal_weights_enabled=True`. Immediate metagraph weight
+  read-back does not match a commit-reveal submission. Full M5 sign-off still
+  requires `commit_reveal_enabled=False` or an explicit commit-reveal reveal
+  path with read-back evidence. If the check in phase 6.5 stays true, stop and
+  mark M5 partial; do not claim a live immediate `set_weights` read-back.
 
 ## Active Dolores wallet inventory
 
@@ -212,6 +218,37 @@ PY
 
 Proceed only when `5DyNfBdYMMUMiSRNpVCWPm7Lfoexa2A7z7L11QCMMdEmCLdm: True`.
 
+## Phase 6.5 - AGENT/LEON: commit-reveal status before weight rehearsal
+
+**AGENT** read-only check:
+
+```bash
+.venv/bin/python scripts/preflight.py --mode localnet \
+  --wallet.name dolores-test --wallet.hotkey validator \
+  --network ws://127.0.0.1:9944 --netuid <N> \
+  | tee work/m5_full/06_preflight_before_dry_run.txt
+```
+
+Inspect `chain readiness` for `commit_reveal_enabled`. If it is `false`,
+continue to phase 7.
+
+If it is `true`, the immediate-read-back M5 path is not ready. A localnet-only
+owner attempt to disable it is a signing command and remains **LEON ONLY**
+unless Leon explicitly authorizes the agent for this localnet container:
+
+```bash
+.venv/bin/btcli sudo set --netuid <N> --network ws://127.0.0.1:9944 \
+  --wallet-name dolores-test \
+  --param commit_reveal_weights_enabled --value false
+```
+
+Then rerun the preflight above. If `commit_reveal_enabled` remains `true`,
+stop with a partial M5 verdict. The 2026-07-08 netuid=2 rehearsal observed
+`btcli` failing with an open-subscription reconnect error, direct SDK owner
+attempts failing with `AdminActionProhibitedDuringWeightsWindow`, and a
+root-sudo localnet attempt emitting `Sudo.Sudid` with an inner module error;
+the flag stayed enabled.
+
 ## Phase 7 — AGENT: miners up + first real dry-run epoch
 
 Use M4's known-good seeds (201/202) so the honest-wins scenario is clean —
@@ -236,8 +273,8 @@ the earlier partial-M5 seeds (501/502) produced a confusing near-tie:
   --wallet.name dolores-test --wallet.hotkey validator --timeout 45
 ```
 
-Acceptance — this is the **first `dry_run_ok` ever** (it was unreachable
-before a permit existed):
+Acceptance when phase 6.5 reports `commit_reveal_enabled=false` — this is the
+first `dry_run_ok` ever after a permit exists:
 
 ```bash
 jq '{mode, reason, payload, submission}' \
@@ -248,6 +285,11 @@ jq '{mode, reason, payload, submission}' \
 
 Leon reviews `payload.uids_emitted` / `weights_u16` against the uid map —
 this is the exact vector phase 8 submits.
+
+If phase 6.5 still reports `commit_reveal_enabled=true`, the corrected chain
+client should write `mode "skipped"`, `reason "commit_reveal_enabled"`,
+`payload null`, and `submission null`; that is an honest partial-M5 stop, not
+a failure of miner scoring.
 
 ## Phase 8 — LEON: live set_weights through all four gates
 
@@ -277,6 +319,11 @@ jq '{mode, reason, submission}' \
 # note: read_back will be null — known stub; phase 9 is the real read-back
 ```
 
+Do not treat `submitted_ok` alone as full M5 success when commit-reveal is
+enabled. In the 2026-07-08 rehearsal, a pre-fix live run returned
+`submitted_ok` for payload `uid=1, weight=65535`, but phase 9 read-back stayed
+`[0.0, 0.0, 0.0]` because the SDK used the commit-reveal path.
+
 ## Phase 9 — AGENT: manual read-back (the real verification)
 
 The receipt's `read_back` field is a known stub (`chain.py:199-201`); on-chain
@@ -294,7 +341,8 @@ PY
 
 Acceptance: the honest miner's uid carries (near-)max weight, matching
 `weights_u16` from the phase-8 receipt within u16 quantization. Save the
-output to `work/m5_full/09_read_back.txt`.
+output to `work/m5_full/09_read_back.txt`. If the row remains all-zero and
+`commit_reveal_enabled=true`, mark M5 partial with the commit-reveal evidence.
 
 ## Phase 10 — wrap up
 
@@ -307,7 +355,8 @@ output to `work/m5_full/09_read_back.txt`.
   `docs/diary/2026-07-08-m5-full-localnet.md` recording: the measured permit
   threshold, the registration burn observed, the create burn (1000 τ localnet
   — do NOT quote this as a testnet number), both receipts, the read-back
-  match, and M5 status flipped to complete.
+  match if achieved, and the M5 verdict. If commit-reveal blocks read-back,
+  keep the verdict partial.
 - Double-check `DOLORES_ALLOW_EXTRINSICS` is unset in every shell:
   `env | grep DOLORES` should print nothing.
 

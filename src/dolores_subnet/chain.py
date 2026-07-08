@@ -152,7 +152,11 @@ class _Substrate:
         return max(0, self.block() - _to_int(last_updates[uid]))
 
     def commit_reveal_enabled(self) -> bool:
-        for name in ("commit_reveal_weights_enabled", "get_commit_reveal_weights_enabled"):
+        for name in (
+            "commit_reveal_enabled",
+            "commit_reveal_weights_enabled",
+            "get_commit_reveal_weights_enabled",
+        ):
             fn = getattr(self.subtensor, name, None)
             if fn is None:
                 continue

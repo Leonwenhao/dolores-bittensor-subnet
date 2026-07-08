@@ -129,8 +129,10 @@ docker run -d --name dolores_localnet -p 9944:9944 -p 9945:9945 \
   --network ws://127.0.0.1:9944
 ```
 
-The 2026-07-08 M5 rehearsal confirmed this image runs on arm64 and exposes a
-preseeded local subnet `netuid=1` named `apex`. Read-only discovery commands:
+The 2026-07-08 M5 rehearsals confirmed this image runs on arm64 and exposes a
+preseeded local subnet `netuid=1` named `apex`. A full localnet rehearsal then
+created Dolores `netuid=2`, registered validator/miner-0/miner-1, and obtained
+validator permit. Read-only discovery commands:
 
 ```bash
 btcli subnets list --network ws://127.0.0.1:9944 --json-output
@@ -142,6 +144,14 @@ That preseeded subnet does not register the Dolores hotkeys by default. A
 netuid-aware preflight may therefore fail closed with
 `reason: "validator_unregistered"` until the localnet registration steps below
 are completed.
+
+Important correction from the netuid=2 rehearsal: the created localnet subnet
+had `commit_reveal_enabled=true`. Immediate metagraph weight read-back stayed
+zero after a successful commit-style SDK submission. Full M5 sign-off still
+requires either commit-reveal disabled before phase 7 or a separately designed
+commit-reveal reveal/read-back path. With the current chain client, preflight
+will report commit-reveal status and the epoch receipt will skip with
+`reason: "commit_reveal_enabled"` instead of submitting.
 
 The following commands sign and are **LEON ONLY**:
 
@@ -183,6 +193,8 @@ non-signing dry-run epoch:
 
 This writes `chain_receipt_epoch_1.json` with `submission: null`. A live localnet
 `--chain live` run is still **LEON ONLY** because it signs `set_weights`.
+Before claiming M5 complete, inspect the receipt and then run manual metagraph
+read-back. `submitted_ok` alone is insufficient when commit-reveal is enabled.
 
 If registration is not yet approved, a static-endpoint localnet rehearsal can
 still validate miner payloads and prove the chain client fails closed:

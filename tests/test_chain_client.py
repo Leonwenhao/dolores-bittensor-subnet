@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
-from dolores_subnet.chain import LIVE_CONFIRMATION, NullChain, SubtensorChain
+from dolores_subnet.chain import LIVE_CONFIRMATION, NullChain, SubtensorChain, _Substrate
 from dolores_subnet.config import SubnetConfig
 from dolores_subnet.epoch import assert_replay_matches, run_epoch
 
@@ -264,6 +264,19 @@ def test_commit_reveal_enabled_skips_without_set_weights(tmp_path) -> None:
     assert result.mode == "skipped"
     assert result.reason == "commit_reveal_enabled"
     assert fake.set_weights_calls == []
+
+
+def test_substrate_detects_current_sdk_commit_reveal_method() -> None:
+    class FakeSubtensor:
+        def commit_reveal_enabled(self, *, netuid: int) -> bool:
+            assert netuid == 7
+            return True
+
+    substrate = object.__new__(_Substrate)
+    substrate.subtensor = FakeSubtensor()
+    substrate.netuid = 7
+
+    assert substrate.commit_reveal_enabled() is True
 
 
 def test_all_zero_and_all_infra_reasons_skip(tmp_path) -> None:

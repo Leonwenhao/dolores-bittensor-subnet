@@ -121,7 +121,9 @@ def run_epoch(
         "config": {"quota": quota, "top_k": quota, "ema_alpha": cfg.ema_alpha},
         "task_values": dict(sorted(task_values.items())),
         "epoch_scores": dict(sorted(epoch_scores.items())),
+        "previous_ema_state": dict(sorted(previous_ema.items())),
         "ema_state": dict(sorted(ema_state.items())),
+        "infra_only": sorted(infra_only),
         "weights": dict(sorted(weights.items())),
         "degraded": degraded,
         "weight_result": chain_result.to_record(),
@@ -134,9 +136,9 @@ def run_epoch(
     epoch_dir = cfg.epoch_dir(epoch_id)
     epoch_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = cfg.weights_path(epoch_id)
-    artifact_path.write_text(
+    _atomic_write_text(
+        artifact_path,
         json.dumps(artifact, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
     report_path = epoch_dir / f"report_epoch_{epoch_id}.md"
     return EpochResult(
@@ -162,8 +164,26 @@ def replay_epoch(cfg: SubnetConfig, *, epoch_id: int) -> dict[str, Any]:
         if row["status"] != "infra_error":
             miner_values[row["miner_hotkey"]].append(float(row["task_value"]))
     epoch_scores = top_k_epoch_scores(miner_values, top_k=quota)
-    weights = normalize_active_weights(artifact["ema_state"], list(artifact["weights"]))
-    return {"epoch_scores": epoch_scores, "weights": weights}
+    active_hotkeys = list(artifact["weights"])
+    if "previous_ema_state" in artifact:
+        # Re-derive the EMA chain end-to-end from the recorded prior state and this
+        # epoch's scores instead of trusting the stored ema_state. This turns the
+        # replay assertion into a real check that the published weights follow from
+        # the submissions log, not a near-tautology over the stored value.
+        previous_ema = {key: float(value) for key, value in artifact["previous_ema_state"].items()}
+        infra_only = set(artifact.get("infra_only", []))
+        ema_state = update_ema_scores(
+            previous_ema,
+            epoch_scores,
+            alpha=float(artifact["config"]["ema_alpha"]),
+            infra_only_miners=infra_only,
+        )
+    else:
+        # Backward-compatible replay for artifacts written before previous_ema_state
+        # was recorded: fall back to re-normalizing the stored ema_state.
+        ema_state = {key: float(value) for key, value in artifact["ema_state"].items()}
+    weights = normalize_active_weights(ema_state, active_hotkeys)
+    return {"epoch_scores": epoch_scores, "ema_state": ema_state, "weights": weights}
 
 
 def assert_replay_matches(cfg: SubnetConfig, *, epoch_id: int) -> None:
@@ -172,6 +192,10 @@ def assert_replay_matches(cfg: SubnetConfig, *, epoch_id: int) -> None:
     if replay["epoch_scores"] != artifact["epoch_scores"]:
         raise AssertionError(
             f"epoch_scores mismatch: {replay['epoch_scores']} != {artifact['epoch_scores']}"
+        )
+    if "previous_ema_state" in artifact and replay["ema_state"] != artifact["ema_state"]:
+        raise AssertionError(
+            f"ema_state mismatch: {replay['ema_state']} != {artifact['ema_state']}"
         )
     if replay["weights"] != artifact["weights"]:
         raise AssertionError(f"weights mismatch: {replay['weights']} != {artifact['weights']}")
@@ -221,5 +245,24 @@ def _load_miner_state(cfg: SubnetConfig) -> dict[str, float]:
 
 def _save_miner_state(cfg: SubnetConfig, state: dict[str, float]) -> None:
     path = _miner_state_path(cfg)
+    _atomic_write_text(
+        path,
+        json.dumps(dict(sorted(state.items())), indent=2, sort_keys=True) + "\n",
+    )
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` atomically via a sibling temp file + os.replace.
+
+    A crash or a concurrent epoch can no longer leave a half-written weights
+    artifact or miner_state.json behind, so the byte-reproducible-weights
+    invariant holds under interruption. Callers should still serialize epoch
+    execution per archive dir to avoid lost read-modify-write on miner_state.
+    """
+
+    import os
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(dict(sorted(state.items())), indent=2, sort_keys=True) + "\n")
+    tmp_path = path.with_name(path.name + ".tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    os.replace(tmp_path, path)

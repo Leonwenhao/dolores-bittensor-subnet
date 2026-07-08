@@ -48,18 +48,40 @@ def purge_task(db_path: Path, task_hash: str) -> None:
         conn.close()
 
 
-def public_safe_archive_copy(source_db: Path, destination_db: Path) -> Path:
+SENSITIVE_FILE_ROLES = frozenset({"hidden_tests"})
+
+
+def public_safe_archive_copy(
+    source_db: Path,
+    destination_db: Path,
+    *,
+    sensitive_file_roles: frozenset[str] = SENSITIVE_FILE_ROLES,
+) -> Path:
+    """Write a public-safe copy of the archive DB.
+
+    The copy is materialized atomically (temp file + ``os.replace``) so a
+    concurrent epoch writing ``source_db`` can never be captured as a torn or
+    partial public artifact, and every ``file_role`` in ``sensitive_file_roles``
+    is stripped before publication. Pass a wider set to scrub additional private
+    roles as the archive schema grows.
+    """
+
+    import os
+
     destination_db.parent.mkdir(parents=True, exist_ok=True)
-    if destination_db.exists():
-        destination_db.unlink()
-    shutil.copy2(source_db, destination_db)
+    tmp_path = destination_db.with_name(destination_db.name + ".tmp")
+    if tmp_path.exists():
+        tmp_path.unlink()
+    shutil.copy2(source_db, tmp_path)
     import duckdb
 
-    conn = duckdb.connect(str(destination_db))
+    conn = duckdb.connect(str(tmp_path))
     try:
-        conn.execute("DELETE FROM task_files WHERE file_role = 'hidden_tests'")
+        for role in sorted(sensitive_file_roles):
+            conn.execute("DELETE FROM task_files WHERE file_role = ?", [role])
     finally:
         conn.close()
+    os.replace(tmp_path, destination_db)
     return destination_db
 
 

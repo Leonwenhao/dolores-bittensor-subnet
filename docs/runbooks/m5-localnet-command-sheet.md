@@ -111,7 +111,7 @@ testnet they fold irreversibly into this same one-shot command (H5 rehearsal):
 .venv/bin/btcli subnets create --network ws://127.0.0.1:9944 \
   --wallet-name dolores-test \
   --subnet-name "Dolores Autocurricula" \
-  --github-repo "https://example.invalid/dolores" \
+  --github-repo "https://github.com/Leonwenhao/dolores-bittensor-subnet" \
   --subnet-contact "leonwenhao@gmail.com"
 ```
 

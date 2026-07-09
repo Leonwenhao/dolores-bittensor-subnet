@@ -66,6 +66,45 @@ def _invalid_tasks(count: int, seed: int):
     ]
 
 
+@dataclass
+class FileMiner:
+    """Serve task packages loaded from disk (participant-authored tasks)."""
+
+    hotkey: str
+    uid: int
+    task_dirs: list[Path]
+
+    def submissions(self, *, epoch_id: int, quota: int) -> list[dict[str, Any]]:
+        del epoch_id
+        return [to_wire(task) for task in self._tasks()[:quota]]
+
+    def _tasks(self) -> list[Any]:
+        from dolores.schemas.task import TaskPackage
+
+        tasks: list[Any] = []
+        for root in self.task_dirs:
+            try:
+                tasks.append(TaskPackage.load(root))
+                continue
+            except Exception:  # noqa: BLE001 - fall through to subdirectory scan
+                pass
+            loaded_any = False
+            for child in sorted(path for path in root.iterdir() if path.is_dir()):
+                try:
+                    tasks.append(TaskPackage.load(child))
+                    loaded_any = True
+                except Exception:  # noqa: BLE001 - skip non-package dirs
+                    continue
+            if not loaded_any:
+                raise SystemExit(
+                    f"--task-dir {root}: not a task package and no loadable "
+                    "task package subdirectories found"
+                )
+        if not tasks:
+            raise SystemExit("--task-dir provided but no task packages loaded")
+        return tasks
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Create or serve miner submissions.")
     parser.add_argument("--mode", choices=["offline", "wire"], default="offline")
@@ -76,7 +115,27 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--wallet.name", dest="wallet_name", default="dolores-test")
     parser.add_argument("--wallet.hotkey", dest="wallet_hotkey", default=None)
+    parser.add_argument(
+        "--task-dir",
+        dest="task_dirs",
+        action="append",
+        default=None,
+        help=(
+            "serve task packages from this directory instead of a persona; "
+            "may be a single package dir or a parent of package dirs; repeatable"
+        ),
+    )
     return parser
+
+
+def _build_miner(args: argparse.Namespace, *, hotkey: str, persona: str):
+    if args.task_dirs:
+        return FileMiner(
+            hotkey=hotkey,
+            uid=0,
+            task_dirs=[Path(path).expanduser() for path in args.task_dirs],
+        )
+    return OfflineMiner(hotkey=hotkey, uid=0, persona=persona, seed=args.seed)
 
 
 def main() -> int:
@@ -84,12 +143,7 @@ def main() -> int:
     persona = args.persona or "honest"
     if args.mode == "wire":
         return serve_wire(args, persona=persona)
-    miner = OfflineMiner(
-        hotkey=f"local-{persona}",
-        uid=0,
-        persona=persona,
-        seed=args.seed,
-    )
+    miner = _build_miner(args, hotkey=f"local-{persona}", persona=persona)
     print(json.dumps(miner.submissions(epoch_id=1, quota=args.quota), indent=2, sort_keys=True))
     return 0
 
@@ -101,12 +155,7 @@ def serve_wire(args: argparse.Namespace, *, persona: str) -> int:
 
     hotkey_name = args.wallet_hotkey or persona
     wallet = bt.Wallet(name=args.wallet_name, hotkey=hotkey_name)
-    miner = OfflineMiner(
-        hotkey=wallet.hotkey.ss58_address,
-        uid=0,
-        persona=persona,
-        seed=args.seed,
-    )
+    miner = _build_miner(args, hotkey=wallet.hotkey.ss58_address, persona=persona)
 
     def forward(synapse: DoloresTaskSynapse) -> DoloresTaskSynapse:
         quota = max(0, min(args.quota, synapse.quota))
@@ -132,9 +181,10 @@ def serve_wire(args: argparse.Namespace, *, persona: str) -> int:
         external_port=args.port,
     )
     axon.attach(forward_fn=forward, verify_fn=verify).start()
+    source = f"task_dirs={','.join(args.task_dirs)}" if args.task_dirs else f"persona={persona}"
     print(
         "wire_miner_started "
-        f"persona={persona} wallet={args.wallet_name}/{hotkey_name} "
+        f"{source} wallet={args.wallet_name}/{hotkey_name} "
         f"hotkey={wallet.hotkey.ss58_address} endpoint={args.host}:{args.port}",
         flush=True,
     )

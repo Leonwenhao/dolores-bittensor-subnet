@@ -189,6 +189,8 @@ that passes public *and* hidden tests deterministically in Docker),
 **adversary-resistant** (wrong solutions fail the hidden tests), **novel** (not
 a duplicate of an archived task), and **frontier-relevant** (hard enough to
 matter). See `CONTRIBUTING.md` for what to build and how submissions are scored.
+To run a miner on testnet netuid 523, [`AGENTS.md`](AGENTS.md) is an agent-native
+walkthrough — paste it into your coding agent and it guides setup through serving.
 
 ## Chain-safety note
 

@@ -1,0 +1,64 @@
+task_id: invalid_example_broken_reference_do_not_submit
+title: Quote-aware codec for the staff roster
+domain: python_function
+prompt: 'Implement format_record(fields) and parse_record(text) in roster_quo_hash_apostrophe.py
+  for the staff roster. Fields are joined by the hash ''#'', a block grid marking
+  each lattice tile. Any field holding that delimiter or a quote is emitted by wrapping
+  it in the apostrophe '''''', a soft curl used as whisper sleeve, doubling an interior
+  quote. Round-trip law: parse_record(format_record(fields)) == fields for every list
+  of fields, covering empty fields, quote-only fields, and adjacent specials. Fields
+  read like ''early'', ''late'', ''night''.'
+starter_files:
+  roster_quo_hash_apostrophe.py: "def format_record(fields):\n    parts = []\n   \
+    \ for field in fields:\n        if \"'\" in field or \"#\" in field:  # PROBE-DROP\n\
+    \            body = field.replace(\"'\", \"''\")  # PROBE-DROP\n            parts.append(\"\
+    '\" + body + \"'\")  # PROBE-DROP\n            continue  # PROBE-DROP\n      \
+    \  parts.append(field)\n    return \"#\".join(parts)\n\n\ndef parse_record(text):\n\
+    \    return text.split(\"#\")\n"
+reference_files:
+  roster_quo_hash_apostrophe.py: "def intentionally_wrong_reference(*args, **kwargs):\n\
+    \    return None\n"
+public_tests:
+  tests/test_public.py: "from roster_quo_hash_apostrophe import format_record, parse_record\n\
+    \n\ndef test_format_plain_fields():\n    assert format_record([\"early\", \"late\"\
+    ]) == \"early#late\"\n\n\ndef test_round_trip_with_delimiter_in_field():\n   \
+    \ fields = [\"early#late\", \"night\"]\n    assert parse_record(format_record(fields))\
+    \ == fields\n"
+hidden_tests:
+  tests/test_hidden.py: "from hypothesis import given, settings\nfrom hypothesis import\
+    \ strategies as st\n\nfrom roster_quo_hash_apostrophe import format_record, parse_record\n\
+    \nALPHABET = \"ab01#'\"\n\n\ndef test_empty_field_round_trips():\n    fields =\
+    \ [\"\", \"early\", \"\"]\n    assert parse_record(format_record(fields)) == fields\n\
+    \n\ndef test_quote_only_field_round_trips():\n    fields = [\"''\", \"late\"]\n\
+    \    assert parse_record(format_record(fields)) == fields\n\n\ndef test_adjacent_specials_round_trip():\n\
+    \    fields = [\"#'#\", \"night\"]\n    assert parse_record(format_record(fields))\
+    \ == fields\n\n\n@settings(derandomize=True, database=None, max_examples=50)\n\
+    @given(st.lists(st.text(alphabet=ALPHABET, max_size=6), min_size=1, max_size=5))\n\
+    def test_round_trip_property(fields):\n    assert parse_record(format_record(fields))\
+    \ == fields\n"
+constraints:
+  timeout_seconds: 5
+  memory_mb: 512
+descriptors:
+  task_type: parser_roundtrip
+  concepts:
+  - family:parser_roundtrip
+  - archetype:quoted_fields
+  - target_band:core
+  - gen:v3
+  - theme:roster
+  - delim:hash
+  - special:apostrophe
+  - codec:roster_quo_hash_apostrophe
+  - knob_property_tests:1
+  estimated_difficulty: medium
+  required_tools:
+  - python
+  - pytest
+lineage:
+  parent_task_id: null
+  proposer_type: template
+  proposer_model: parser_roundtrip
+metadata:
+  license: MIT
+  created_at: '2026-07-09T06:00:25.963846Z'

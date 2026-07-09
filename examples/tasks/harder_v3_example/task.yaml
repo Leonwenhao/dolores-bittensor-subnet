@@ -1,0 +1,64 @@
+task_id: harder_v3_example_multi_file_bugfix
+title: Stop cross-call leakage in the warehouse order desk
+domain: bugfix_repo
+prompt: In the warehouse order desk, `gather(items)` in `order_desk/api.py` should
+  return the normalized labels for just the order items passed to it. It works the
+  first time, but on later calls it also returns order labels from earlier calls --
+  results leak across invocations. Fix `fill` in `order_desk/basket.py` so each call
+  starts from a clean collection unless the caller supplies their own. Normalization
+  (`order_desk/normalize.py`) trims and upper-cases each item, for example 'pick'
+  becomes 'PICK' and 'ship' becomes 'SHIP'.
+starter_files:
+  order_desk/__init__.py: ''
+  order_desk/normalize.py: "def normalize(item):\n    return item.strip().upper()\n"
+  order_desk/api.py: "from order_desk.basket import fill\n\n\ndef gather(items):\n\
+    \    return fill(items)\n"
+  order_desk/basket.py: "from order_desk.normalize import normalize\n\n\ndef fill(new_items,\
+    \ basket=[]):\n    for item in new_items:\n        basket.append(normalize(item))\n\
+    \    return basket\n"
+reference_files:
+  order_desk/__init__.py: ''
+  order_desk/normalize.py: "def normalize(item):\n    return item.strip().upper()\n"
+  order_desk/api.py: "from order_desk.basket import fill\n\n\ndef gather(items):\n\
+    \    return fill(items)\n"
+  order_desk/basket.py: "from order_desk.normalize import normalize\n\n\ndef fill(new_items,\
+    \ basket=None):\n    if basket is None:  # PROBE-DROP\n        basket = []  #\
+    \ PROBE-DROP\n    for item in new_items:\n        basket.append(normalize(item))\n\
+    \    return basket\n"
+public_tests:
+  tests/test_public.py: "from order_desk.api import gather\n\n\ndef test_separate_calls_are_independent():\n\
+    \    first = gather([\"pick\", \"pack\"])\n    second = gather([\"ship\"])\n \
+    \   assert first == [\"PICK\", \"PACK\"]\n    assert second == [\"SHIP\"]\n\n\n\
+    def test_single_call_transforms_each_item():\n    assert gather([\"pick\"]) ==\
+    \ [\"PICK\"]\n"
+hidden_tests:
+  tests/test_hidden.py: "from order_desk.api import gather\nfrom order_desk.basket\
+    \ import fill\n\n\ndef test_repeated_gathers_stay_isolated():\n    for _ in range(5):\n\
+    \        assert gather([\"pick\"]) == [\"PICK\"]\n\n\ndef test_explicit_basket_is_extended():\n\
+    \    seed = [\"SHIP\"]\n    assert fill([\"pick\"], seed) == [\"SHIP\", \"PICK\"\
+    ]\n\n\ndef test_explicit_basket_does_not_touch_default():\n    fill([\"pack\"\
+    ], [\"PICK\"])\n    assert gather([\"ship\"]) == [\"SHIP\"]\n\n\ndef test_whitespace_is_trimmed():\n\
+    \    assert gather([\"  pick  \"]) == [\"PICK\"]\n"
+constraints:
+  timeout_seconds: 5
+  memory_mb: 512
+descriptors:
+  task_type: multi_file_bugfix
+  concepts:
+  - family:multi_file_bugfix
+  - archetype:shared_state_alias
+  - theme:orders
+  - target_band:core
+  - gen:v3
+  - knob_files:4
+  estimated_difficulty: medium
+  required_tools:
+  - python
+  - pytest
+lineage:
+  parent_task_id: null
+  proposer_type: template
+  proposer_model: multi_file_bugfix
+metadata:
+  license: MIT
+  created_at: '2026-07-09T06:00:25.958548Z'

@@ -1,0 +1,57 @@
+{
+  "declared_difficulty": "medium",
+  "family": "parser_roundtrip",
+  "package": {
+    "constraints": {
+      "memory_mb": 512,
+      "timeout_seconds": 5
+    },
+    "descriptors": {
+      "concepts": [
+        "family:parser_roundtrip",
+        "archetype:quoted_fields",
+        "target_band:core",
+        "gen:v3",
+        "theme:roster",
+        "delim:hash",
+        "special:apostrophe",
+        "codec:roster_quo_hash_apostrophe",
+        "knob_property_tests:1"
+      ],
+      "estimated_difficulty": "medium",
+      "required_tools": [
+        "python",
+        "pytest"
+      ],
+      "task_type": "parser_roundtrip"
+    },
+    "domain": "python_function",
+    "hidden_tests": {
+      "tests/test_hidden.py": "from hypothesis import given, settings\nfrom hypothesis import strategies as st\n\nfrom roster_quo_hash_apostrophe import format_record, parse_record\n\nALPHABET = \"ab01#'\"\n\n\ndef test_empty_field_round_trips():\n    fields = [\"\", \"early\", \"\"]\n    assert parse_record(format_record(fields)) == fields\n\n\ndef test_quote_only_field_round_trips():\n    fields = [\"''\", \"late\"]\n    assert parse_record(format_record(fields)) == fields\n\n\ndef test_adjacent_specials_round_trip():\n    fields = [\"#'#\", \"night\"]\n    assert parse_record(format_record(fields)) == fields\n\n\n@settings(derandomize=True, database=None, max_examples=50)\n@given(st.lists(st.text(alphabet=ALPHABET, max_size=6), min_size=1, max_size=5))\ndef test_round_trip_property(fields):\n    assert parse_record(format_record(fields)) == fields\n"
+    },
+    "lineage": {
+      "parent_task_id": null,
+      "proposer_model": "parser_roundtrip",
+      "proposer_type": "template"
+    },
+    "metadata": {
+      "created_at": "2026-07-09T06:00:25.960881Z",
+      "license": "MIT"
+    },
+    "prompt": "Implement format_record(fields) and parse_record(text) in roster_quo_hash_apostrophe.py for the staff roster. Fields are joined by the hash '#', a block grid marking each lattice tile. Any field holding that delimiter or a quote is emitted by wrapping it in the apostrophe ''', a soft curl used as whisper sleeve, doubling an interior quote. Round-trip law: parse_record(format_record(fields)) == fields for every list of fields, covering empty fields, quote-only fields, and adjacent specials. Fields read like 'early', 'late', 'night'.  ",
+    "public_tests": {
+      "tests/test_public.py": "from roster_quo_hash_apostrophe import format_record, parse_record\n\n\ndef test_format_plain_fields():\n    assert format_record([\"early\", \"late\"]) == \"early#late\"\n\n\ndef test_round_trip_with_delimiter_in_field():\n    fields = [\"early#late\", \"night\"]\n    assert parse_record(format_record(fields)) == fields\n"
+    },
+    "reference_files": {
+      "roster_quo_hash_apostrophe.py": "def format_record(fields):\n    parts = []\n    for field in fields:\n        if \"'\" in field or \"#\" in field:  # PROBE-DROP\n            body = field.replace(\"'\", \"''\")  # PROBE-DROP\n            parts.append(\"'\" + body + \"'\")  # PROBE-DROP\n            continue  # PROBE-DROP\n        parts.append(field)\n    return \"#\".join(parts)\n\n\ndef parse_record(text):\n    fields = []\n    buf = []\n    index = 0\n    in_quotes = False\n    while index < len(text):\n        ch = text[index]\n        if ch == \"'\":  # PROBE-DROP\n            doubled = index + 1 < len(text) and text[index + 1] == \"'\"  # PROBE-DROP\n            if in_quotes and doubled:  # PROBE-DROP\n                buf.append(\"'\")  # PROBE-DROP\n                index += 2  # PROBE-DROP\n                continue  # PROBE-DROP\n            in_quotes = not in_quotes  # PROBE-DROP\n            index += 1  # PROBE-DROP\n            continue  # PROBE-DROP\n        if ch == \"#\" and not in_quotes:\n            fields.append(\"\".join(buf))\n            buf = []\n        else:\n            buf.append(ch)\n        index += 1\n    fields.append(\"\".join(buf))\n    return fields\n"
+    },
+    "starter_files": {
+      "roster_quo_hash_apostrophe.py": "def format_record(fields):\n    parts = []\n    for field in fields:\n        if \"'\" in field or \"#\" in field:  # PROBE-DROP\n            body = field.replace(\"'\", \"''\")  # PROBE-DROP\n            parts.append(\"'\" + body + \"'\")  # PROBE-DROP\n            continue  # PROBE-DROP\n        parts.append(field)\n    return \"#\".join(parts)\n\n\ndef parse_record(text):\n    return text.split(\"#\")\n"
+    },
+    "task_id": "duplicate_example_do_not_submit",
+    "title": "Quote-aware codec for the staff roster"
+  },
+  "package_hash": "6bc0bfb7fa77d768214c7c3789d5b2f3e7e17a6e311bb58d7301b82e1175a1ce",
+  "schema_version": "dolores-subnet-v0",
+  "task_id": "duplicate_example_do_not_submit"
+}

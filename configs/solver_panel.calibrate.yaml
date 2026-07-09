@@ -1,0 +1,33 @@
+# Real solver panel for calibration mode (--panel-mode calibrate).
+#
+# Every provider below is PAID inference. This panel only runs when all three
+# spend gates are set: --allow-provider-spend, DOLORES_ALLOW_PROVIDER_SPEND=1,
+# and a positive --panel-max-tasks budget. FIREWORKS_API_KEY must be present
+# in the validator environment. The default validator panel remains
+# solver_panel.mock.yaml; this file is opt-in only.
+#
+# Model tiers mirror the proven core-Dolores v3 calibration panel
+# (floor / mid / strong) trimmed to three solvers for budget sanity.
+panel_id: dolores_subnet_calibrate_2026_07
+solvers:
+  - id: gpt_oss_120b_floor
+    provider: fireworks
+    model: accounts/fireworks/models/gpt-oss-120b
+    temperature: 0.2
+    max_tokens: 8192
+    request_timeout: 180
+    attempts: 1
+  - id: glm_5p1_mid
+    provider: fireworks
+    model: accounts/fireworks/models/glm-5p1
+    temperature: 0.2
+    max_tokens: 16384
+    request_timeout: 300
+    attempts: 1
+  - id: kimi_k2p6_strong
+    provider: fireworks
+    model: accounts/fireworks/models/kimi-k2p6
+    temperature: 0.2
+    max_tokens: 16384
+    request_timeout: 300
+    attempts: 1

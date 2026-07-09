@@ -39,7 +39,9 @@ generation, and the wallet/chain integration.
       c. reference solution passes public AND hidden tests in Docker
       d. wrong-solution probes are caught (bad code must fail hidden tests)
       e. duplicate / dedup gate passes
-4. Validator assigns a quality score (0 on any hard-gate failure).
+4. Validator assigns a quality score (0 on any hard-gate failure); for
+   surviving tasks a solver panel supplies the difficulty signal — mock by
+   default, named models in calibration mode.
 5. Scores feed the EMA; EMA is normalized into the weight vector.
 6. Validator writes an archive row (task + verification run + lineage).
 7. Validator emits two artifacts: deterministic weights file and chain receipt.
@@ -47,9 +49,21 @@ generation, and the wallet/chain integration.
 ```
 
 A single hard-gate failure sets `score = 0`. Otherwise the staged score weighs
-verifier quality, novelty/diversity, frontier signal, and metadata clarity.
-Frontier signal can be a cached or mocked panel result at this stage — paid
-inference is never required to run the loop.
+verifier quality, novelty/diversity, frontier (difficulty) signal, and metadata
+clarity. The difficulty signal comes from a solver panel that runs **only on
+tasks that have already cleared the hard gates** — never as a gate itself. By
+default the panel is a **pinned mock panel**, so no paid inference is required
+to run the loop. An **optional calibration mode** (`--panel-mode calibrate`)
+swaps in a panel of named frontier/open models and folds the *measured*
+difficulty into the score; it is operator-gated behind an explicit spend
+opt-in, budget-capped per epoch, cached by task hash so a task is never
+measured (or billed) twice, and off by default. Infra-class failures
+(provider errors, timeouts, truncation, parse errors) are excluded from the
+measured solve rate and are never cached. Either way, raw panel output is
+**volatile evidence**: per-attempt telemetry lands in a per-epoch
+`solver_panel_epoch_N.json` sidecar, and only the derived, deterministic
+solve-rate signal touches task values — the weights file's replay guarantee
+depends only on gate outcomes and recorded inputs.
 
 ## Fail-closed chain safety
 

@@ -30,6 +30,9 @@ class SubmissionOutcome:
     components: dict[str, float] = field(default_factory=dict)
     verification_summary: dict[str, Any] = field(default_factory=dict)
     reason: str = ""
+    # Per-attempt solver-panel rows. Deliberately excluded from to_record so
+    # volatile provider telemetry never enters submissions.jsonl / replay.
+    panel_rows: list[dict[str, Any]] = field(default_factory=list)
 
     def to_record(
         self,
@@ -59,6 +62,7 @@ def validate_submission(
     *,
     context: GateContext | None = None,
     miner_hotkey: str = "local-miner",
+    panel_path: Path | None = None,
 ) -> SubmissionOutcome:
     archive.init_archive(cfg)
     reserved = RESERVED_WIRE_KEYS.intersection(wire)
@@ -97,7 +101,7 @@ def validate_submission(
         result = run_task_pipeline(
             task_dir,
             cfg.archive_db,
-            cfg.panel_path,
+            panel_path if panel_path is not None else cfg.panel_path,
             backend=cfg.backend,
             mode=cfg.pipeline_mode,
             allow_unsafe_local=False,
@@ -186,7 +190,20 @@ def _outcome_from_pipeline(
         components=components,
         verification_summary=summary,
         reason=reason,
+        panel_rows=_panel_rows(result),
     )
+
+
+def _panel_rows(result: Any) -> list[dict[str, Any]]:
+    eval_result = getattr(result, "eval_result", None)
+    solver_results = getattr(eval_result, "solver_results", None) or []
+    rows: list[dict[str, Any]] = []
+    for run in solver_results:
+        if hasattr(run, "model_dump"):
+            rows.append(run.model_dump(mode="json"))
+        elif isinstance(run, dict):
+            rows.append(dict(run))
+    return rows
 
 
 def _prepare_dolores_docker_env(cfg: SubnetConfig) -> None:

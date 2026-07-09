@@ -194,6 +194,11 @@ class SubnetConfig:
     wallet_name: str = DEFAULT_WALLET_NAME
     wallet_hotkey: str = DEFAULT_WALLET_HOTKEY
     allow_commit_reveal: bool = False
+    panel_mode: str = "mock"
+    panel_calibrate_path: Path = REPO_ROOT / "configs" / "solver_panel.calibrate.yaml"
+    panel_max_tasks: int = 8
+    panel_dry_run: bool = False
+    allow_provider_spend: bool = False
 
     @classmethod
     def from_env(
@@ -206,6 +211,10 @@ class SubnetConfig:
         network: str | None = None,
         netuid: int | str | None = None,
         allow_commit_reveal: bool | None = None,
+        panel_mode: str | None = None,
+        panel_max_tasks: int | str | None = None,
+        panel_dry_run: bool | None = None,
+        allow_provider_spend: bool | None = None,
     ) -> SubnetConfig:
         parsed_mode = parse_mode(mode or os.environ.get("DOLORES_SUBNET_MODE"))
         backend, pipeline_mode = verifier_defaults(parsed_mode)
@@ -221,6 +230,29 @@ class SubnetConfig:
             parsed_mode,
             requested=netuid,
             env_value=os.environ.get("BT_NETUID"),
+        )
+        resolved_panel_mode = str(
+            panel_mode or os.environ.get("DOLORES_SUBNET_PANEL_MODE", "mock")
+        ).strip().lower()
+        if resolved_panel_mode not in {"mock", "calibrate"}:
+            raise ConfigError(
+                f"panel_mode must be 'mock' or 'calibrate': {resolved_panel_mode!r}"
+            )
+        raw_max_tasks = (
+            panel_max_tasks
+            if panel_max_tasks is not None
+            else os.environ.get("DOLORES_SUBNET_PANEL_MAX_TASKS", 8)
+        )
+        try:
+            resolved_panel_max_tasks = int(raw_max_tasks)
+        except (TypeError, ValueError) as exc:
+            raise ConfigError(f"panel_max_tasks must be an integer: {raw_max_tasks!r}") from exc
+        if resolved_panel_max_tasks < 0:
+            raise ConfigError(f"panel_max_tasks must be non-negative: {resolved_panel_max_tasks}")
+        resolved_panel_dry_run = (
+            bool(panel_dry_run)
+            if panel_dry_run is not None
+            else os.environ.get("DOLORES_SUBNET_PANEL_DRYRUN", "") == "1"
         )
         return cls(
             mode=parsed_mode,
@@ -245,6 +277,16 @@ class SubnetConfig:
             wallet_hotkey=wallet_hotkey
             or os.environ.get("BT_WALLET_HOTKEY", DEFAULT_WALLET_HOTKEY),
             allow_commit_reveal=bool(allow_commit_reveal),
+            panel_mode=resolved_panel_mode,
+            panel_calibrate_path=Path(
+                os.environ.get(
+                    "DOLORES_SUBNET_PANEL_CALIBRATE",
+                    str(root / "configs/solver_panel.calibrate.yaml"),
+                )
+            ).expanduser(),
+            panel_max_tasks=resolved_panel_max_tasks,
+            panel_dry_run=resolved_panel_dry_run,
+            allow_provider_spend=bool(allow_provider_spend),
         )
 
     def epoch_dir(self, epoch_id: int) -> Path:
@@ -252,3 +294,10 @@ class SubnetConfig:
 
     def weights_path(self, epoch_id: int) -> Path:
         return self.epoch_dir(epoch_id) / f"weights_epoch_{epoch_id}.json"
+
+    def solver_panel_path(self, epoch_id: int) -> Path:
+        return self.epoch_dir(epoch_id) / f"solver_panel_epoch_{epoch_id}.json"
+
+    @property
+    def panel_cache_path(self) -> Path:
+        return self.archive_dir / "panel_cache.jsonl"

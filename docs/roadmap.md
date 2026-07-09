@@ -4,6 +4,16 @@ Everything below that is not marked **done** is **planned** and not yet
 implemented. Current status is tracked in
 [`testnet-status.md`](testnet-status.md).
 
+## Shipped
+
+- **Real solver-panel calibration mode.** The validator can optionally measure
+  gauntlet-surviving tasks against a panel of named frontier/open models
+  (Fireworks provider) and fold the measured difficulty into scoring, instead
+  of the default mock panel. Operator-gated (explicit spend opt-in +
+  budget cap + dry-run preview), cached by task hash, off by default. The
+  capability is merged; publishing "measured against `<models>`" claims waits
+  for an operator-approved real calibration run that produces artifacts.
+
 ## Near term — get to first public live weights
 
 The immediate path is narrow and sequential:

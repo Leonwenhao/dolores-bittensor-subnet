@@ -95,6 +95,60 @@ def task_value_from_score(score: Any) -> float:
     return round(max(0.0, min(1.0, value)), 6)
 
 
+# Mirrors dolores.scoring.aggregate.INFRA_ERROR_CLASSES: attempts in these
+# classes reflect infrastructure/provider failures, not task difficulty, and
+# must never move a task's measured solve rate.
+INFRA_ERROR_CLASSES = frozenset(
+    {"provider_error", "parse_error", "timeout_error", "verifier_error", "truncation_error"}
+)
+
+# Mirrors the weights inside dolores.scoring.aggregate (frontier_difficulty at
+# 0.25) and dolores.scoring.frontier.frontier_difficulty_score. Recalibration
+# must stay bit-consistent with what a live-panel pipeline run would produce.
+FRONTIER_WEIGHT = 0.25
+RUNTIME_WEIGHT = 0.05
+
+
+def frontier_band_score(solve_rate: float) -> float:
+    """Band value peaking at ~45% solve rate (mirror of core frontier score)."""
+
+    return max(0.0, min(1.0, 1.0 - abs(float(solve_rate) - 0.45) / 0.55))
+
+
+def clean_solve_rate_from_rows(rows: list[dict[str, Any]]) -> float | None:
+    """Infra-excluded solve rate over per-attempt evidence rows.
+
+    Returns None when no genuine (non-infra) attempt exists — callers must
+    treat that as "no measurement", never as difficulty 0.
+    """
+
+    genuine = [row for row in rows if str(row.get("error_class")) not in INFRA_ERROR_CLASSES]
+    if not genuine:
+        return None
+    passed = sum(1 for row in genuine if bool(row.get("passed")))
+    return passed / len(genuine)
+
+
+def recalibrated_task_value(
+    task_value: float,
+    components: Mapping[str, float],
+    measured_solve_rate: float | None,
+) -> float:
+    """Swap the frontier term of an accepted task's value for a measured one.
+
+    With measured_solve_rate=None this is the identity, so mock/unsampled
+    paths stay byte-identical. Zero-valued (non-accepted) tasks are never
+    rescued by cached difficulty evidence — the gauntlet verdict stands.
+    """
+
+    if measured_solve_rate is None or task_value <= 0.0:
+        return task_value
+    baseline = max(0.0, min(1.0, float(components.get("frontier_difficulty", 0.0))))
+    measured = frontier_band_score(measured_solve_rate)
+    adjusted = task_value + FRONTIER_WEIGHT * (measured - baseline) / (1.0 - RUNTIME_WEIGHT)
+    return round(max(0.0, min(1.0, adjusted)), 6)
+
+
 VOLATILE_KEYS = {
     "timing",
     "created_at",

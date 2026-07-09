@@ -37,7 +37,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-extrinsics", action="store_true")
     parser.add_argument("--allow-commit-reveal", action="store_true")
     parser.add_argument("--confirm-live", default="")
+    parser.add_argument("--panel-mode", choices=["mock", "calibrate"], default=None)
+    parser.add_argument("--panel-max-tasks", type=int, default=None)
+    parser.add_argument("--panel-dry-run", action="store_true")
+    parser.add_argument("--allow-provider-spend", action="store_true")
     return parser
+
+
+def _panel_kwargs(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "panel_mode": args.panel_mode,
+        "panel_max_tasks": args.panel_max_tasks,
+        "panel_dry_run": args.panel_dry_run or None,
+        "allow_provider_spend": args.allow_provider_spend,
+    }
 
 
 def main() -> int:
@@ -94,6 +107,7 @@ def run_wire(args: argparse.Namespace) -> int:
         work_dir=args.work,
         wallet_name=args.wallet_name,
         wallet_hotkey=args.wallet_hotkey,
+        **_panel_kwargs(args),
     )
     wallet = bt.Wallet(name=cfg.wallet_name, hotkey=cfg.wallet_hotkey)
     endpoints = parse_miner_endpoints(
@@ -128,6 +142,7 @@ def run_chain(args: argparse.Namespace, mode: Mode) -> int:
         network=args.network,
         netuid=args.netuid,
         allow_commit_reveal=args.allow_commit_reveal,
+        **_panel_kwargs(args),
     )
     confirmation = _live_confirmation(args, cfg)
     chain_client = build_chain_client(

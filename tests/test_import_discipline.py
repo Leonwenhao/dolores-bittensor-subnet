@@ -29,6 +29,7 @@ for name in [
     "dolores_subnet.epoch",
     "dolores_subnet.gates",
     "dolores_subnet.packaging",
+    "dolores_subnet.panel",
     "dolores_subnet.scoring",
     "neurons.miner",
     "neurons.validator",

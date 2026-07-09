@@ -97,7 +97,11 @@ Two roles talk over signed Bittensor axon/dendrite transport.
 
 A task that passes every gate scores toward `1.0`; a duplicate or an invalid
 task collapses to `0.0`. Scores feed an exponential moving average, which is
-normalized into the weight vector. Every epoch writes two separate artifacts:
+normalized into the weight vector. Task difficulty is measured by a solver
+panel — a **pinned mock panel by default**, with an **optional calibration
+mode** that measures gauntlet-surviving tasks against named frontier/open
+models instead. The default loop needs no paid inference. Every epoch writes
+two separate artifacts:
 a **deterministic weights file** (byte-reproducible, replayable) and a
 **volatile chain receipt** (the extrinsic outcome). Splitting them keeps the
 scoring provable independent of chain conditions.
@@ -134,6 +138,12 @@ wire demo and the kill test — in [`docs/demo.md`](docs/demo.md).
   ```bash
   export DOLORES_REPO="<path-to-dolores-autocurricula>"
   ```
+- **Optional — real calibration mode.** The default panel is mock and needs no
+  credentials. A real calibration pass requires `--panel-mode calibrate`, the
+  provider credential (`FIREWORKS_API_KEY`) in the environment, an explicit
+  spend opt-in (`--allow-provider-spend` plus `DOLORES_ALLOW_PROVIDER_SPEND=1`),
+  and a per-epoch task budget. It is opt-in and off by default; run
+  `--panel-dry-run` first to preview the calls without spending.
 
 ## Repository layout
 
@@ -154,10 +164,15 @@ Stated plainly:
   the project; external miners are on the roadmap.
 - **Weights are not yet live on the public chain.** The write path is rehearsed
   and gated, not exercised publicly.
+- **Difficulty calibration is mock by default.** The frontier-difficulty signal
+  comes from a pinned mock solver panel unless calibration mode is explicitly
+  enabled against named models. Real calibration is opt-in, budget-capped, and
+  operator-gated — it is not on by default.
 - **Scores do not yet claim training-value prediction.** The current score
-  proves a task is safe, verifiable, non-duplicate, and frontier-signaled — not
-  that it improves downstream training. Validating score → training value is
-  explicit future work.
+  proves a task is safe, verifiable, non-duplicate, and difficulty-signaled
+  (mock panel by default; measured against named models in calibration mode) —
+  not that it improves downstream training. Validating score → training value
+  is explicit future work.
 
 ## Roadmap
 

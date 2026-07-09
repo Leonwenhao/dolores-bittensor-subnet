@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import time
 from dataclasses import dataclass
@@ -13,8 +14,10 @@ from dolores_subnet import archive, bridge
 from dolores_subnet.chain import ChainClient, NullChain
 from dolores_subnet.config import SubnetConfig
 from dolores_subnet.gates import GateContext
+from dolores_subnet.panel import PanelSession
 from dolores_subnet.scoring import (
     normalize_active_weights,
+    recalibrated_task_value,
     top_k_epoch_scores,
     update_ema_scores,
 )
@@ -46,6 +49,7 @@ def run_epoch(
 ) -> EpochResult:
     started = time.monotonic()
     archive.init_archive(cfg)
+    panel_session = PanelSession(cfg)
     context = GateContext(quota=quota)
     outcomes: list[tuple[MinerLike, bridge.SubmissionOutcome]] = []
     for miner in miners:
@@ -60,12 +64,44 @@ def run_epoch(
 
     collected = _collect(miners, epoch_id=epoch_id, quota=quota)
     for miner, payload in sorted(collected, key=lambda item: str(item[1].get("package_hash", ""))):
+        submission_hash = payload.get("package_hash")
+        plan = panel_session.plan(submission_hash)
+        panel_kwargs: dict[str, Any] = (
+            {"panel_path": panel_session.panel_path_for(plan)} if panel_session.active else {}
+        )
         outcome = bridge.validate_submission(
             payload,
             cfg,
             context=context,
             miner_hotkey=miner.hotkey,
+            **panel_kwargs,
         )
+        if plan == "live" and not outcome.panel_rows:
+            # Gate/verification failure meant the real panel never ran.
+            panel_session.refund()
+            plan = "gate_failed"
+        if plan == "cache":
+            cached_rate = panel_session.cached_solve_rate(outcome.package_hash)
+            outcome = dataclasses.replace(
+                outcome,
+                task_value=recalibrated_task_value(
+                    outcome.task_value, outcome.components, cached_rate
+                ),
+            )
+            panel_session.record(
+                plan=plan,
+                task_id=outcome.task_id,
+                task_hash=outcome.package_hash,
+                rows=[],
+                cached_rate=cached_rate,
+            )
+        elif plan != "mock":
+            panel_session.record(
+                plan=plan,
+                task_id=outcome.task_id,
+                task_hash=outcome.package_hash,
+                rows=outcome.panel_rows,
+            )
         archive.append_submission(
             cfg,
             outcome.to_record(epoch_id=epoch_id, miner_hotkey=miner.hotkey, miner_uid=miner.uid),
@@ -133,6 +169,7 @@ def run_epoch(
     _save_miner_state(cfg, ema_state)
     epoch_dir = cfg.epoch_dir(epoch_id)
     epoch_dir.mkdir(parents=True, exist_ok=True)
+    panel_session.write_sidecar(epoch_id)
     artifact_path = cfg.weights_path(epoch_id)
     artifact_path.write_text(
         json.dumps(artifact, indent=2, sort_keys=True) + "\n",

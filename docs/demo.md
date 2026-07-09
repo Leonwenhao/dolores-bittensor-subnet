@@ -30,7 +30,9 @@ python scripts/preflight.py --mode offline
 ```
 
 Expect `PASS` for Python, Dolores import, solver panel, Docker daemon, and the
-verifier image. Chain and wallet checks are skipped in offline mode.
+verifier image. The `solver panel` check reports the **mock** panel — the demo
+always runs mock; real calibration mode is operator-only and not exercised
+here. Chain and wallet checks are skipped in offline mode.
 
 ## 1. Offline epoch — honest vs. duplicate-spammer vs. invalid
 

@@ -108,11 +108,22 @@ the metagraph: receipt `reason = dry_run_ok`, both hotkeys mapped to uids
 (Publication populates `AXON`; it does not flip miner `ACTIVE`, which is
 weights-based and cosmetic for miners.)
 
+## Second live weights — fully repo-native (2026-07-09)
+
+The second public `set_weights` ran entirely through the repo's own SDK path
+(no manual fallback): metagraph-discovered miners, four live gates, receipt
+`mode = submitted, reason = submitted_ok` carrying full on-chain metadata —
+extrinsic hash `0x8873244e…607c4469`, block hash `0xf7c0a41f…a32bc23`,
+extrinsic index 7, `receipt_success = true`. Same payload digest as the
+discovery dry-run; replay `REPLAY OK`; validator `UPDATED` reset confirmed.
+The bounded-timeout retry guard (websocket hang → clean fail-closed exit,
+retry same epoch) is what made this repeatable. The manual-fallback caveat
+on the first submit is now historical.
+
 ## Next milestones
-- Make the repo-native SDK weight path retry-aware and reliably
-  receipt-writing, so live weights are repeatable without the manual fallback.
 - Repeat weight submissions across tempo boundaries and record incentive/
   emission stability (first pass verified 2026-07-09).
+- First non-first-party (cohort) miner registered, discovered, and scored.
 
 ## Chain-safety posture
 

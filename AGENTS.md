@@ -47,8 +47,17 @@ A miner **serves** a prepared task package over signed transport; the **validato
 operator) does the Docker verification. So a miner does **NOT need Docker** and does **NOT run
 the verifier**. Minimal miner setup:
 
-- **Python 3.11** (exactly 3.11 — the repo pins it).
-- This repo, installed: `pip install -e ".[dev]"` (this also installs the `bittensor` SDK).
+- **Python 3.11–3.14** (the repo requires `>=3.11,<3.15`; any of those works).
+- This repo, cloned and installed into a fresh venv:
+  ```bash
+  git clone https://github.com/Leonwenhao/dolores-bittensor-subnet
+  cd dolores-bittensor-subnet
+  python3 -m venv .venv && source .venv/bin/activate
+  pip install -e ".[dev]"        # installs the bittensor SDK (large download —
+  pip install bittensor-cli     # do both on good wifi before the session)
+  ```
+  Note: `bittensor-cli` (the `btcli` command) is a **separate required package** —
+  the SDK does not bundle it.
 - The **Dolores engine** (`dolores` Python package) on the path. It builds the task package and
   computes the canonical package hash; the miner code imports it. The operator provides access
   and the checkout path tonight. Set `export DOLORES_REPO="<path-to-dolores-autocurricula>"`.
@@ -61,9 +70,10 @@ a miner-only box; that is fine, ignore them. Verify only what a miner needs, bel
 ### Verify (run each; all must pass)
 
 ```bash
-python --version                                   # must be 3.11.x
+python --version                                   # 3.11.x – 3.14.x all fine
 python -c "import bittensor as bt; print(bt.__version__)"   # 10.x
-DOLORES_REPO must be set:  echo "$DOLORES_REPO"     # non-empty path
+btcli --version                                    # prints a version (bittensor-cli)
+echo "$DOLORES_REPO"                               # non-empty path (re-export in every new shell)
 python -c "import dolores; print(getattr(dolores,'__version__','ok'))"   # imports cleanly
 ```
 
@@ -74,8 +84,8 @@ checkout (e.g. `pip install -e "$DOLORES_REPO"`) before continuing.
 
 ## 2. Bittensor basics
 
-- Install check: the SDK came with `pip install -e ".[dev]"`. The CLI is `btcli`. Verify
-  `btcli --version`; if missing, `pip install bittensor-cli`.
+- The CLI is `btcli`, installed via `pip install bittensor-cli` in §1 (it is NOT bundled
+  with the SDK). Verify `btcli --version` before continuing.
 - **Coldkey vs hotkey.** The **coldkey** is your funds/identity key — it holds TAO and stays
   cold; you rarely touch it. The **hotkey** is the operational signing key your miner uses and
   the key you register on the subnet. One coldkey can own many hotkeys. Tonight: one coldkey,
@@ -90,9 +100,10 @@ commands, and must never see the mnemonic.** Pick a wallet name and hotkey name 
 let the human choose).
 
 ```bash
-btcli wallet create --wallet.name my-dolores --wallet.hotkey miner --network test
-# (or, if regenerating an existing key, the human uses `btcli wallet regen_*` privately —
-#  never paste a mnemonic into this chat, a file, or any command you run.)
+btcli wallet create --wallet.name my-dolores --wallet.hotkey miner
+# (wallet creation is local — no network flag involved. If regenerating an existing
+#  key, the human uses `btcli wallet regen_*` privately — never paste a mnemonic into
+#  this chat, a file, or any command you run.)
 ```
 
 The human writes the mnemonic down offline. When done, verify **read-only** that the wallet
@@ -124,7 +135,8 @@ Before you emit ANY `btcli` or `bittensor` command:
 
 ## 5. Register on netuid 523 (signed action — human runs it)
 
-Registration costs a small **recycle fee** (~1 testnet TAO) burned from your coldkey. This is a
+Registration costs a small **recycle fee** (currently ~0.0005 testnet TAO — dynamic; it
+rises slightly with each registration) burned from your coldkey. This is a
 signed extrinsic: **the human runs it.** You draft it exactly:
 
 ```bash
@@ -248,9 +260,14 @@ so a task that is a near-copy of an existing archived task will still score zero
 ## 8. Serve your miner (tonight's submission path)
 
 Miners serve an **axon**; the operator's validator dendrites into it and pulls your submissions.
-Start the miner in wire mode with your registered hotkey, a port, and the **same seed** you
-validated. To be reachable by the operator, bind to a host they can reach (LAN IP, or `0.0.0.0`)
-— not `127.0.0.1`, which is local-only.
+Serving requires your wallet to exist (§3) — the §6 offline emit is the only walletless smoke
+test. Two prerequisites for the command:
+
+- **Pick a free port.** `8091` is the convention, but check it first
+  (`lsof -nP -iTCP:8091 -sTCP:LISTEN` — empty means free). If it's taken (shared machine,
+  earlier attempt still running), use any free port — the port is part of your endpoint.
+- **Bind reachable.** Use `--host 0.0.0.0`, not `127.0.0.1` (local-only). Find your LAN IP
+  with `ipconfig getifaddr en0` (macOS).
 
 ```bash
 # Persona path (generated tasks, differentiated by your seed):
@@ -264,14 +281,24 @@ python neurons/miner.py --mode wire --task-dir path/to/my_task \
   --wallet.name my-dolores --wallet.hotkey miner
 ```
 
-Wait for the log line `wire_miner_started ... endpoint=<host>:<port> hotkey=<ss58>`. Then give
-the operator your endpoint triple exactly as they need it:
-
-```
-<reachable-ip>:8091:<your-hotkey-ss58>
-```
-
+Wait for the log line `wire_miner_started ... endpoint=<host>:<port> hotkey=<ss58>`.
 (The first axon bind may trigger a macOS/Linux firewall prompt — the human should allow it.)
+
+**Being found — two options:**
+
+1. **Auto-discovery (preferred): publish your axon on-chain.** Add these flags to the serve
+   command above: `--publish --network test --netuid 523 --external-ip <YOUR_LAN_IP>`
+   (and `--external-port <PORT>` if it differs from `--port`). This signs a `serve_axon`
+   extrinsic with **your hotkey** — it publishes only your IP and port, moves no funds, and
+   because the human runs the miner command, the human is the one signing. Wait for the log
+   line `axon_publish=ok`. The operator's validator then discovers you from the metagraph
+   automatically — nothing to hand over. (One publish per ~50 blocks per hotkey; re-running
+   with the same IP/port is a free no-op.)
+2. **Fallback: hand the operator your endpoint triple** exactly as they need it:
+
+```
+<reachable-ip>:<port>:<your-hotkey-ss58>
+```
 
 **Do not spam.** The dedup gate catches near-copies; resubmitting the same package (or a trivial
 variant) earns **zero** and wastes your per-epoch quota. Serve distinct, seed-differentiated
@@ -295,21 +322,23 @@ do not attempt any of the above "to make a harder task."
 ## 10. Final checklist (run top to bottom)
 
 ```
-[ ] python --version            -> 3.11.x
+[ ] python --version            -> 3.11.x–3.14.x
 [ ] python -c "import bittensor" -> 10.x, no error
-[ ] echo "$DOLORES_REPO"        -> non-empty
+[ ] btcli --version             -> prints a version (pip install bittensor-cli if not)
+[ ] echo "$DOLORES_REPO"        -> non-empty (re-export in every new shell)
 [ ] python -c "import dolores"  -> no error
-[ ] btcli --version             -> prints a version
 [ ] btcli wallet balance --wallet.name <W> --network test   -> funded (>0)
 [ ] EVERY chain command carries --network test and --netuid 523
 [ ] btcli subnets register --netuid 523 --network test ...  (human ran it)
 [ ] btcli subnets show --netuid 523 --network test          -> my hotkey/UID present
-[ ] python neurons/miner.py --mode offline --persona honest --seed <UNIQUE> --quota 2 > my_submissions.json
-[ ] self-validate script prints ALL_LOCAL_GATES_PASS
-[ ] python neurons/miner.py --mode wire --persona honest --seed <SAME> --port 8091 --host 0.0.0.0 --wallet.name <W> --wallet.hotkey <HK>
-[ ] log shows wire_miner_started; gave operator <ip>:8091:<hotkey-ss58>
+[ ] task ready: EITHER offline emit (--persona honest --seed <UNIQUE>) printed
+    ALL_LOCAL_GATES_PASS, OR authored dir passed scripts/validate_task.py
+[ ] port free (lsof check), then miner serving: --mode wire ... --host 0.0.0.0
+[ ] log shows wire_miner_started
+[ ] discovered: --publish flags added and log shows axon_publish=ok,
+    OR operator has my <ip>:<port>:<hotkey-ss58> triple
 [ ] miner process left running for the validator to query
 ```
 
-If every box is checked, the miner is live. Report the endpoint triple and UID to the operator,
-then keep the miner running.
+If every box is checked, the miner is live. Report your UID to the operator and keep the
+miner running.

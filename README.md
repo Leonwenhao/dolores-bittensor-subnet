@@ -55,7 +55,7 @@ Honest snapshot. Full evidence in [`docs/testnet-status.md`](docs/testnet-status
 | Commit-reveal verified off | done |
 | Validator permit granted | done |
 | First public live weights | done |
-| On-chain miner discovery (axon published) | pending |
+| On-chain miner discovery (axons published, validator discovers from metagraph) | done |
 | Incentive + per-uid emission (first Yuma pass) | done |
 
 The first public testnet weight update landed on netuid 523 on 2026-07-09:

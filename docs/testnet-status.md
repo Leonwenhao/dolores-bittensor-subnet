@@ -96,12 +96,19 @@ exactly as intended.
   (~0.0042 τ, the floor); expected to stay ~0 on public testnet
   indefinitely. Testnet tokens carry no economic value.
 
-## Next milestones
+## On-chain miner discovery (2026-07-09, later the same day)
 
-- Publish miner axons on-chain (`serve_axon` / `btcli axon set`) so miners
-  are discoverable from the metagraph — enabling the validator to run without
-  explicit `--miner-endpoints`. (Note: publication populates `AXON`; it does
-  not flip miner `ACTIVE`, which is weights-based and cosmetic for miners.)
+Both miner axons were published via `serve_axon` (hotkey-signed, operator-
+approved): uid 1 at `192.168.1.94:8091`, uid 2 at `192.168.1.94:8092` —
+`AXON` no longer reads `none`. The validator then ran a public-testnet
+dry-run epoch **without `--miner-endpoints`**, discovering both miners from
+the metagraph: receipt `reason = dry_run_ok`, both hotkeys mapped to uids
+1/2, honest miner at full weight (`uids_emitted=[1]`,
+`weights_u16=[65535]`), duplicate-spammer scored 0, replay `REPLAY OK`.
+(Publication populates `AXON`; it does not flip miner `ACTIVE`, which is
+weights-based and cosmetic for miners.)
+
+## Next milestones
 - Make the repo-native SDK weight path retry-aware and reliably
   receipt-writing, so live weights are repeatable without the manual fallback.
 - Repeat weight submissions across tempo boundaries and record incentive/

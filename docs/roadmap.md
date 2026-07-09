@@ -13,19 +13,23 @@ implemented. Current status is tracked in
   budget cap + dry-run preview), cached by task hash, off by default. The
   capability is merged; publishing "measured against `<models>`" claims waits
   for an operator-approved real calibration run that produces artifacts.
+- **First public testnet weights.** Netuid 523 accepted the first public
+  `set_weights` submit on 2026-07-09 (`7520191-8`), and direct read-back
+  confirmed `Weights[523,0] = [(1, 65535)]`.
 
-## Near term — get to first public live weights
+## Near term — make the loop repeatable
 
 The immediate path is narrow and sequential:
 
-1. **Validator permit.** Poll permit/rate readiness after the tempo boundary
-   (tempo = 360 blocks) until `validator_permit` flips true. *(pending)*
-2. **First public live weights.** With the permit live and commit-reveal
-   verified off, submit the first `set_weights` on netuid 523 through the gated
-   live path. *(pending)*
-3. **Public read-back evidence.** Record the submission extrinsic and the
-   metagraph read-back confirming the nonzero weight vector, and publish it in
-   `testnet-status.md`. *(pending)*
+1. **Repo-native SDK reliability.** The first public submit used a direct async
+   substrate fallback because the repo SDK dry-run path hit testnet websocket
+   hangs. Make the repo-native path retry-aware and reliably receipt-writing.
+   *(planned)*
+2. **Small real solver-panel calibration.** Run an operator-approved,
+   budget-capped Fireworks calibration on one to three accepted tasks and publish
+   the sidecar artifact. *(planned)*
+3. **External cohort miners.** Have at least one non-first-party participant
+   serve an authored task package and earn nonzero weight on testnet. *(planned)*
 
 ## Mid term — open the network
 
@@ -33,7 +37,7 @@ The immediate path is narrow and sequential:
   *(planned)*
 - **Miner onboarding docs.** A clear guide for what a good task package looks
   like and how submissions are scored, so third parties can contribute without
-  hand-holding. *(planned)*
+  hand-holding. *(done for the initial cohort agent path)*
 - **Task-family coverage steering.** Incentive weighting that steers supply
   toward under-covered task families instead of rewarding whatever is easiest to
   produce. *(planned)*

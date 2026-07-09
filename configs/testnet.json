@@ -1,7 +1,7 @@
 {
   "name": "Dolores Autocurricula",
   "network": "test",
-  "status": "public_testnet_registered_started_staked_waiting_for_validator_permit",
+  "status": "public_testnet_registered_started_staked_live_weights_submitted",
   "netuid": 523,
   "wallet_name": "dolores-test",
   "coldkey_ss58": "5ELE5RrYaxhRLoumvMenr2rSqpZZLX4nxNnYA5B7mLLNJHVG",
@@ -14,7 +14,7 @@
     "source": "btcli wallet overview --wallet-name dolores-test --netuid 523 --network test --json-output, 2026-07-08 after public registration and stake"
   },
   "public_subnet_registered": true,
-  "validator_permit": false,
+  "validator_permit": true,
   "public_testnet": {
     "netuid": 523,
     "create_extrinsic": "7512866-7",
@@ -23,12 +23,18 @@
     "miner_1_register_extrinsic": "7512893-7",
     "validator_stake_extrinsic": "7512943-6",
     "commit_reveal_toggle_extrinsic": "7512952-7",
+    "first_live_weights_extrinsic": "7520191-8",
     "commit_reveal_weights_enabled": false,
     "validator_uid": 0,
     "miner_0_uid": 1,
-    "miner_1_uid": 2
+    "miner_1_uid": 2,
+    "first_live_weights_read_back": {
+      "storage_key": "Weights[523,0]",
+      "value": [[1, 65535]],
+      "source": "direct async substrate read-back, 2026-07-09"
+    }
   },
-  "chain_client": "SubtensorChain read-only/dry-run/live gates implemented; public subnet is registered and staked, but public live set_weights has not executed yet",
+  "chain_client": "SubtensorChain read-only/dry-run/live gates implemented; first public live set_weights was submitted through a direct async substrate fallback after repo SDK testnet dry-run websocket hangs",
   "commit_reveal_policy": "Public netuid 523 has commit_reveal_weights_enabled=false as of the 2026-07-08 read-back; if it flips true later, live weights require explicit --allow-commit-reveal and are commit evidence rather than immediate metagraph read-back evidence",
   "validator": {
     "hotkey_name": "validator",

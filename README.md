@@ -7,7 +7,7 @@ software tasks with hidden tests; the validator proves each task is real,
 deduplicated, and hard — then rewards the tasks worth keeping.
 
 - Network: Bittensor public **testnet**, netuid **523**
-- Status: registered, started, validator staked (validator permit pending)
+- Status: registered, started, validator staked, live weights submitted
 - Tests: 68 passing locally with the Dolores engine, public CI smoke enabled,
   `ruff` clean
 - Repo: https://github.com/Leonwenhao/dolores-bittensor-subnet
@@ -53,13 +53,12 @@ Honest snapshot. Full evidence in [`docs/testnet-status.md`](docs/testnet-status
 | Miners registered (uid 1, uid 2) | done |
 | Validator staked (uid 0) | done |
 | Commit-reveal verified off | done |
-| Validator permit granted | pending (expected at a tempo boundary) |
-| First public live weights | pending (blocked on permit) |
+| Validator permit granted | done |
+| First public live weights | done |
 
-There are **no live public weights yet**. The chain-write path has been fully
-rehearsed on a local substrate node — including a live `set_weights` accepted by
-the node and a deterministic replay — but nothing has been written to the public
-metagraph. See the rehearsal appendix in the status doc.
+The first public testnet weight update landed on netuid 523 on 2026-07-09:
+extrinsic `7520191-8`, with direct read-back `Weights[523,0] = [(1, 65535)]`.
+See the status doc for the exact evidence and the local rehearsal appendix.
 
 ## How it works
 
@@ -162,8 +161,10 @@ Stated plainly:
 - **Testnet only.** No mainnet registration or economics.
 - **First-party miners at launch.** The two registered miners are operated by
   the project; external miners are on the roadmap.
-- **Weights are not yet live on the public chain.** The write path is rehearsed
-  and gated, not exercised publicly.
+- **First public weights are live on testnet.** The initial public submit used a
+  direct async substrate fallback after the SDK dry-run path hit testnet
+  websocket hangs; the emitted vector and read-back are documented in
+  `docs/testnet-status.md`.
 - **Difficulty calibration is mock by default.** The frontier-difficulty signal
   comes from a pinned mock solver panel unless calibration mode is explicitly
   enabled against named models. Real calibration is opt-in, budget-capped, and
@@ -176,10 +177,10 @@ Stated plainly:
 
 ## Roadmap
 
-Near term: validator permit → first public live weights → published read-back
-evidence. Mid term: external miners and onboarding, task-family coverage
-steering, verifier-quality leaderboard. Long term: mainnet consideration,
-curriculum archive exports, and downstream training ablations. Detail in
+Near term: external miner submissions, small real solver-panel calibration, and
+repeatable live-weight operation. Mid term: task-family coverage steering and a
+verifier-quality leaderboard. Long term: mainnet consideration, curriculum
+archive exports, and downstream training ablations. Detail in
 [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Contributing

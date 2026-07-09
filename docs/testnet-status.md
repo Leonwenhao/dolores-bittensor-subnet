@@ -25,6 +25,7 @@ All extrinsics are on Bittensor testnet, 2026-07-08.
 | Miner-1 register | `7512893-7` |
 | Validator stake | `7512943-6` |
 | Commit-reveal disable | `7512952-7` |
+| First public live weights | `7520191-8` |
 
 ## Addresses and UIDs
 
@@ -45,21 +46,26 @@ A testnet faucet top-up of roughly 10 τ landed between miner registration and
 the validator stake; balances are otherwise not load-bearing for the status
 here and are omitted.
 
-## Current gaps
+## Public live weights
 
-State plainly: the subnet is **registered, started, and staked**, but it is not
-yet emitting live weights.
+The subnet is **registered, started, staked, permit-granted, and live-weighted**
+on Bittensor public testnet.
 
-1. **Validator permit not yet granted.** At the first post-stake read-back,
-   `validator_permit=false`. This is expected immediately after registration and
-   stake. The permit is expected to flip at a tempo boundary (tempo = 360
-   blocks); the next step is to poll permit/rate readiness after that boundary.
-2. **No public live weights yet.** No `set_weights` has been submitted to the
-   public metagraph. The write path is implemented and rehearsed (see appendix)
-   but deliberately gated until the permit is live.
+- Validator permit: **true**, observed in `btcli wallet overview` before the
+  first submit.
+- First public submit: `7520191-8`, 2026-07-09, netuid 523.
+- Emitted vector: uid `1` received full weight, encoded as `65535`.
+- Direct storage read-back: `Weights[523,0] = [(1, 65535)]`.
+- Wallet overview read-back: validator uid `0` `UPDATED` counter reset from
+  roughly `7310` before submit to `3` after submit.
 
-When live weights are submitted, this document will record the submission
-extrinsic and the metagraph read-back that confirms the nonzero vector.
+Operational note: the repo validator's SDK dry-run path hit intermittent
+testnet websocket hangs during the first public run. The submit therefore used a
+minimal direct async substrate fallback that composed the same
+`SubtensorModule.set_weights` call for `dests=[1]`, `weights=[65535]`,
+`version_key=1`, signed by the validator hotkey on `network=test`. The
+wire-mode validator artifact immediately before the submit scored miner-0 at
+`1.0` and miner-1 at `0.0`, and replay checked `REPLAY OK`.
 
 ## Chain-safety posture
 
@@ -98,5 +104,8 @@ live submission mechanics. It is localnet evidence, not a public testnet receipt
 ## Status history
 
 - **2026-07-08** — Subnet created, started, both miners registered, validator
-  staked, commit-reveal verified off on Bittensor testnet netuid 523. Validator
-  permit pending; no public live weights yet.
+  staked, commit-reveal verified off on Bittensor testnet netuid 523. At that
+  time, validator permit and public live weights were still pending.
+- **2026-07-09** — Validator permit observed true. First public live weights
+  submitted in extrinsic `7520191-8`; direct read-back confirmed
+  `Weights[523,0] = [(1, 65535)]`.

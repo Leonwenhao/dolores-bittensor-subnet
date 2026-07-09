@@ -8,6 +8,12 @@ gauntlet rejects.
 > Read **[`AGENTS.md`](../../AGENTS.md)** (repo root) first — it is the end-to-end miner
 > runbook (install, wallet, register on netuid 523, self-validate, serve). This directory is
 > the "what a package looks like" companion to it (see AGENTS.md §6 "Build a task package").
+>
+> **Fastest way to your own submission:** don't hand-author from scratch — fork one of these and
+> mutate it. `python scripts/prepare_mutation_task.py --name <id>` copies `honest_example` to
+> `my_task_<id>/`, rewrites its `task_id`, and drops the stale `wire.json`; then follow AGENTS.md's
+> **Fast Path** + **Mutation Guide**. Validate with `scripts/validate_task.py --run-tests` and
+> `--dedup-against examples/tasks` before serving.
 
 ## The four examples
 
@@ -77,12 +83,14 @@ that ultimately gates reward and is not something a miner self-scores.
 
 ## How to serve one as a miner
 
-**Authored-task path** — copy an example directory, adapt it, validate, serve:
+**Mutation path (recommended)** — fork an example, mutate it, validate, serve:
 
 ```bash
-cp -r examples/tasks/honest_example my_task            # then edit prompt/tests/solution + task_id
-python scripts/validate_task.py --task-dir my_task     # schema/size/hash/pre-gates
-python neurons/miner.py --mode wire --task-dir my_task --port 8091 --host 0.0.0.0 \
+python scripts/prepare_mutation_task.py --name my_id            # -> my_task_my_id/ (task_id set, wire.json dropped)
+# ... mutate meaningfully: change file bytes, PROBE-DROP + hidden test, prompt/concepts ...
+python scripts/validate_task.py --task-dir my_task_my_id --run-tests               # reference passes its own tests
+python scripts/validate_task.py --task-dir my_task_my_id --dedup-against examples/tasks  # max duplicate_score < 0.7
+python neurons/miner.py --mode wire --task-dir my_task_my_id --port 8091 --host 0.0.0.0 \
   --wallet.name <W> --wallet.hotkey <HK>
 ```
 
@@ -105,10 +113,15 @@ for the actual self-validate-then-serve flow.
 Serving them as-is earns **zero** and wastes a submission slot:
 
 - **`duplicate_example`** — cosmetically renaming a `task_id` and tweaking whitespace does not
-  make a task novel. Two things catch it: (1) a byte-identical resubmission is rejected outright
-  by the deterministic `epoch_duplicate` gate (same `stable_hash`); (2) a cosmetic near-copy
-  gets a different hash but scores ~0 on the **novelty** component because the validator dedups
-  against the whole archive, not just the current batch. Either way: no reward.
+  make a task novel. The validator computes a `duplicate_score` against the **whole archive**
+  (exact-hash match, prompt/descriptor Jaccard, and **file-content overlap**), and takes the max.
+  Because this copy leaves the reference/tests/starter **bytes unchanged**, its file overlap is
+  **1.0** → the task is **rejected outright** (`duplicate_score ≥ 0.95`). Even a near-copy that
+  edited some bytes lands in the **≥0.85 "review" band, which also pays zero**. (A byte-identical
+  resubmission is additionally caught pre-serve by the deterministic `epoch_duplicate` gate.)
+  Reproduce the score locally: `python scripts/validate_task.py --task-dir
+  examples/tasks/duplicate_example --dedup-against examples/tasks` prints `1.00`. Safe target for
+  a real mutation: **< 0.7**.
 - **`invalid_example`** — its reference solution is a stub that returns `None`, so it fails its
   own hidden tests inside the Docker verifier. A task whose own reference can't pass is invalid
   and scores zero. (Real rejections also include: hidden tests too weak to fail a wrong

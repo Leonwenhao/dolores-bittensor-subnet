@@ -7,8 +7,9 @@ software tasks with hidden tests; the validator proves each task is real,
 deduplicated, and hard — then rewards the tasks worth keeping.
 
 - Network: Bittensor public **testnet**, netuid **523**
-- Status: registered, started, validator staked, live weights submitted
-- Tests: 68 passing locally with the Dolores engine, public CI smoke enabled,
+- Status: live weights on-chain, miners discovered from the metagraph, first
+  Yuma incentive pass verified
+- Tests: 96 passing locally with the Dolores engine, public CI smoke enabled,
   `ruff` clean
 - Repo: https://github.com/Leonwenhao/dolores-bittensor-subnet
 - Canonical status & on-chain evidence: [`docs/testnet-status.md`](docs/testnet-status.md)
@@ -36,10 +37,12 @@ contamination pressure, and wrong-solution probes are exactly the attacks a
 curriculum pipeline must survive to be trustworthy — so the network's
 adversaries continuously harden the curation logic instead of degrading it.
 
-Dolores Autocurricula is the open, public supply side of Dolores Research's
-broader curriculum layer. It complements solver subnets (which reward solving
-benchmarks) by rewarding the creation of the benchmarks those solvers need, and
-the durable output — a verified, deduplicated task archive — is useful well
+We built the **open market mechanism for curriculum supply**: tasks earn their
+place through adversarial verification, and verified supply is priced into
+on-chain weight. The subnet proves the market mechanism — discovery, scoring,
+weight-setting, and incentive all run end to end on public testnet. Dolores
+Research builds the eval, archive, and curriculum engine behind it, and the
+durable output — a verified, deduplicated task archive — is useful well
 outside crypto.
 
 ## Current status
@@ -58,8 +61,13 @@ Honest snapshot. Full evidence in [`docs/testnet-status.md`](docs/testnet-status
 | On-chain miner discovery (axons published, validator discovers from metagraph) | done |
 | Incentive + per-uid emission (first Yuma pass) | done |
 
-The first public testnet weight update landed on netuid 523 on 2026-07-09:
-extrinsic `7520191-8`, with direct read-back `Weights[523,0] = [(1, 65535)]`.
+The first public testnet weight update landed on netuid 523 on 2026-07-09
+(extrinsic `7520191-8`, direct read-back `Weights[523,0] = [(1, 65535)]`), and
+the first Yuma pass assigned the weighted miner `incentive = 1.0` with real
+per-uid alpha emission. Miner axons are published on-chain and the validator
+discovers them from the metagraph — no hardcoded endpoints. Open items,
+stated plainly: no external (non-first-party) miner has earned weight yet, and
+the solver-panel calibration mode has not had an operator-approved real run.
 See the status doc for the exact evidence and the local rehearsal appendix.
 
 ## How it works
@@ -199,7 +207,12 @@ that passes public *and* hidden tests deterministically in Docker),
 a duplicate of an archived task), and **frontier-relevant** (hard enough to
 matter). See `CONTRIBUTING.md` for what to build and how submissions are scored.
 To run a miner on testnet netuid 523, [`AGENTS.md`](AGENTS.md) is an agent-native
-walkthrough — paste it into your coding agent and it guides setup through serving.
+walkthrough — paste it into your coding agent and it guides setup through
+serving. The fastest route is its **Fast Path**: fork a known-good example task
+(`scripts/prepare_mutation_task.py`), mutate it meaningfully, and validate
+locally — including a dedup dry-run that proves your task isn't a shallow copy —
+before serving. Shallow copies measurably score zero; meaningful mutations can
+earn weight.
 
 ## Chain-safety note
 

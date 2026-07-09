@@ -41,6 +41,63 @@ Honest expectations (state these to the human, do not oversell):
 
 ---
 
+## Fast Path — mutate a known-good task into your own (recommended)
+
+Fastest route to a real, rewardable submission: fork a curated known-good task and mutate it
+**meaningfully**. Front-load the slow chain/network waits at minute 0, do the mutation work (no
+engine/chain needed to edit) *under* those waits. Deep rules are in the referenced sections —
+don't skip §4 (mainnet safety) or §9 (unsafe tasks).
+
+**Minute 0 — kick off the async waits (do these first, they run while you edit):**
+
+1. Install (large SDK download — do on good wifi). First set the engine path
+   (ask the operator for it), then install everything:
+   `export DOLORES_REPO="<path-to-dolores-autocurricula>"` then
+   `pip install -e ".[dev]" && pip install bittensor-cli && pip install -e "$DOLORES_REPO"`
+2. Human creates the wallet (human's terminal, never you — §3):
+   `btcli wallet create --wallet.name my-dolores --wallet.hotkey miner`
+3. Human sends their **coldkey ss58** (from `btcli wallet list`, read-only) to the operator to
+   request funding — the recycle fee is tiny but you cannot register on `0` (§3).
+
+**While those wait — mutate a task (no engine/chain needed to edit):**
+
+4. Fork a known-good task: `python scripts/prepare_mutation_task.py --name <your_id>`
+   (creates `my_task_<your_id>/`, rewrites `task_id`, deletes the stale `wire.json`).
+5. Mutate **meaningfully** — change the file *bytes* (new grammar/format/edge case), tag the
+   edge logic with `# PROBE-DROP` + add a hidden test hitting exactly that edge, then rewrite
+   the prompt and `descriptors.concepts`. Keep `lineage.parent_task_id: null`. A rename or
+   story-text tweak scores **zero** — see the "Mutation Guide" section for the good/bad table
+   and recipes. **Editing tip:** rewrite the embedded Python as YAML block literal scalars
+   (`some_file.py: |` followed by indented plain Python) — zero escaping needed. The forked
+   file arrives in double-quoted escaped style, which is error-prone for backslash-heavy
+   code; you may freely convert it.
+6. Prove the reference passes its own tests:
+   `python scripts/validate_task.py --task-dir my_task_<your_id> --run-tests`
+7. Prove it isn't a near-copy:
+   `python scripts/validate_task.py --task-dir my_task_<your_id> --dedup-against examples/tasks`
+   (aim for max duplicate_score **< 0.7**; ≥0.85 is zero pay). Then the walletless
+   serve-proof — this prints the exact wire JSON you will serve, no wallet needed:
+   `python neurons/miner.py --mode offline --task-dir my_task_<your_id> --quota 1`
+
+**Once funded — register and serve (signed steps are the human's; §4–§5, §8):**
+
+8. Human registers (needs funds): `btcli subnets register --netuid 523 --network test
+   --wallet.name my-dolores --wallet.hotkey miner`
+9. Confirm registration (read-only): `btcli subnets show --netuid 523 --network test`
+10. Pick a free port: `lsof -nP -iTCP:8091 -sTCP:LISTEN` (empty = free); find LAN IP:
+    `ipconfig getifaddr en0`.
+11. Serve + publish on-chain (human runs it — it signs `serve_axon` with the hotkey, moves no
+    funds): `python neurons/miner.py --mode wire --task-dir my_task_<your_id> --quota 2
+    --port 8091 --host 0.0.0.0 --wallet.name my-dolores --wallet.hotkey miner
+    --publish --network test --netuid 523 --external-ip <YOUR_LAN_IP>`
+12. Wait for `wire_miner_started` then `axon_publish=ok`; leave the process running. (Fallback if
+    not publishing: hand the operator `<ip>:<port>:<hotkey-ss58>` — §8.)
+
+The persona/seed generator ("Fallback: generated tasks by seed" below) exists if mutation feels
+too slow, but the mutation path is the more distinct, more impressive supply.
+
+---
+
 ## 1. What a miner actually needs installed
 
 A miner **serves** a prepared task package over signed transport; the **validator** (run by the
@@ -174,57 +231,92 @@ Max canonical size: **200 KiB** per submission (`MAX_PACKAGE_BYTES`).
 **Package fields** (inside `package`): `task_id`, `title`, `domain`, `prompt`,
 `starter_files`, `reference_files`, `public_tests`, `hidden_tests`, `constraints`
 (`timeout_seconds`, `memory_mb`), `descriptors` (`task_type`, `concepts`,
-`estimated_difficulty`, `required_tools`), `lineage`, `metadata`. The reference solution must
-pass both `public_tests` and `hidden_tests`; the hidden tests must be strong enough to **fail a
-wrong solution**.
+`estimated_difficulty`, `required_tools`), `lineage`, `metadata`. The reference must pass both
+test sets, and the hidden tests must be strong enough to **fail a wrong solution** (Mutation Guide).
 
-You do **not** hand-compute the hash. Generate a real, valid package with the engine and let it
-compute everything. Tonight's supported path produces genuine `parser_roundtrip` packages keyed
-by a **unique seed** — the seed is what makes your supply distinct from other participants. Pick
-a seed no one else is using (e.g. a big random number):
+You do **not** hand-compute the hash — the engine computes `package_hash` when you serve or
+validate a `task.yaml` directory. Produce a valid package via the **Fast Path** (mutate a
+known-good task); the **Mutation Guide** below is the ruleset that makes a mutation actually earn
+reward. The persona/seed generator is the fallback at the end of this section.
+
+---
+
+## Mutation Guide
+
+You fork a curated known-good task (`scripts/prepare_mutation_task.py --name <id>`) and change it
+so the validator sees a **novel, still-verifiable** task. What "meaningful" means:
+
+| Good mutation (earns reward) | Bad mutation (scores zero) |
+|---|---|
+| Change the grammar/format (new delimiter, escaping, length-prefix) | Rename `task_id`/title only |
+| Add a real edge case + a hidden test that exercises exactly it | Reword the story/prompt text only |
+| Change a constraint that forces different reference logic | Reorder or rename tests |
+| Change family parameters, updating reference **and** tests together | Cosmetic metadata / whitespace tweaks |
+| | Leave reference/tests/starter bytes unchanged |
+| | Anything unsafe, flaky, or networked (§9) |
+
+**The dedup trap (real numbers).** The validator computes a `duplicate_score` of your task
+against the **whole archive**: exact hash match = 1.0; else `max(prompt_word_jaccard*0.75 +
+descriptor_jaccard*0.25, file_content_overlap, 0.8 if your lineage.parent_task_id points at an
+archived task)`. **≥0.95 → rejected outright. ≥0.85 → "review", which also pays zero.** If you
+leave the reference/tests/starter **bytes** unchanged, file overlap = **1.0** → auto-reject no
+matter how you reword the prompt. **Aim for < 0.7.** Check before serving:
 
 ```bash
-# Emit the exact wire submissions you will serve, to inspect them:
+python scripts/validate_task.py --task-dir my_task_<id> --dedup-against examples/tasks
+```
+
+**The PROBE-DROP contract.** The validator plants three wrong solutions your hidden tests **must
+fail**: (1) your starter files as-is, (2) your reference with every `return X` turned into
+`return None`, (3) your reference with every line containing `# PROBE-DROP` deleted. So: tag your
+edge-case / core logic lines with `# PROBE-DROP`, and make sure a **hidden test exercises exactly
+that edge** — otherwise probe (3) passes and your task scores zero. Prove the reference itself
+passes first:
+
+```bash
+python scripts/validate_task.py --task-dir my_task_<id> --run-tests
+```
+
+**Recipes for `honest_example`** (single-file `parser_roundtrip`, start here):
+- Change the grammar to a **pipe delimiter + backslash-escaping** (prototyped duplicate_score
+  ~0.51, all probes caught).
+- Add a real edge case (**trailing delimiter** or **unicode field**) with a `# PROBE-DROP` trap
+  and a hidden test hitting it.
+- Switch to **length-prefixed fields** instead of quoting.
+
+**Ambitious recipe for `harder_v3_example`** (multi-file): add a second shared-state bug class —
+a module-level cache leak plus a mutable-default memo dict in a new `pricing.py` — and change the
+dedup contract to **order-preserving** dedup, updating the reference and tests together.
+
+**Do / Verify / STOP checklist:**
+```
+DO
+[ ] prepare_mutation_task.py --name <id>   (forks, rewrites task_id, drops wire.json)
+[ ] change file BYTES: new grammar/format/edge case in reference + starter
+[ ] tag edge logic with # PROBE-DROP; add a hidden test hitting that exact edge
+[ ] rewrite prompt + descriptors.concepts to match; lineage.parent_task_id: null
+VERIFY
+[ ] validate_task.py --task-dir my_task_<id> --run-tests      -> reference PASSES
+[ ] validate_task.py --task-dir my_task_<id> --dedup-against examples/tasks -> max < 0.7
+STOP if
+[ ] --run-tests fails (reference broken = invalid_example failure = zero)
+[ ] dedup max >= 0.85 (zero pay) — mutate more, don't serve
+```
+
+---
+
+## Fallback: generated tasks by seed
+
+If mutation feels too slow, the engine can emit genuine `parser_roundtrip` packages keyed by a
+**unique seed** — the seed is what makes your supply distinct. Pick a seed no one else is using
+(a big random number). Emit and inspect the exact wire submissions you'll serve:
+
+```bash
 python neurons/miner.py --mode offline --persona honest \
   --seed 730214 --quota 2 > my_submissions.json
 ```
 
-**Authoring your own task (the more impressive path):** copy a curated example from
-`examples/tasks/` (start from `honest_example/` or `harder_v3_example/`), adapt the prompt,
-tests, and reference solution, and give it a unique `task_id`. Keep the directory shape
-(`task.yaml` plus the files it references). Validate it with one command:
-
-```bash
-python scripts/validate_task.py --task-dir path/to/my_task
-```
-
-Then serve it directly — no seed needed:
-
-```bash
-python neurons/miner.py --mode wire --task-dir path/to/my_task \
-  --port 8091 --host 0.0.0.0 \
-  --wallet.name my-dolores --wallet.hotkey miner
-```
-
-`--task-dir` accepts a single package directory or a parent directory containing several, and
-is repeatable. If authoring feels too slow tonight, the persona path above is the fallback.
-
----
-
-## 7. Self-validate before serving
-
-You can check locally everything that is deterministic — **schema, size, hash, and in-batch
-duplication** — without the validator. You **cannot** locally decide what the validator's Docker
-gauntlet decides (reference actually passing in Docker, wrong-solution probes, dedup against the
-full archive, difficulty scoring).
-
-For an authored task directory, the one-command check is:
-
-```bash
-python scripts/validate_task.py --task-dir path/to/my_task
-```
-
-For persona-emitted wire JSON, run this against the JSON you emitted:
+Self-validate the emitted JSON (deterministic gates only — schema, size, hash, in-batch dup):
 
 ```bash
 python - <<'PY'
@@ -250,18 +342,19 @@ print("ALL_LOCAL_GATES_PASS" if ok else "LOCAL_GATE_FAILURE")
 PY
 ```
 
-Expect `ALL_LOCAL_GATES_PASS`. STOP and fix (usually: use a different unique seed, or reduce
-size) if any line says `FAIL`/`REJECT`. Note: the local `epoch_duplicate` gate only catches
-duplicates **within this batch** — the validator additionally dedups against the whole archive,
-so a task that is a near-copy of an existing archived task will still score zero on-chain.
+Expect `ALL_LOCAL_GATES_PASS`. STOP and fix (usually: a different unique seed, or reduce size) if
+any line says `FAIL`/`REJECT`. The local `epoch_duplicate` gate only catches **in-batch**
+duplicates; the validator also dedups against the whole archive, so a near-copy still scores zero
+on-chain (`--dedup-against` above is the closest local approximation).
 
 ---
 
 ## 8. Serve your miner (tonight's submission path)
 
 Miners serve an **axon**; the operator's validator dendrites into it and pulls your submissions.
-Serving requires your wallet to exist (§3) — the §6 offline emit is the only walletless smoke
-test. Two prerequisites for the command:
+Serving requires your wallet to exist (§3) — the walletless smoke test is the offline emit
+(`--mode offline --task-dir my_task_<id>` for a mutated task, or the seed emit in the Fallback
+section). Two prerequisites for the command:
 
 - **Pick a free port.** `8091` is the convention, but check it first
   (`lsof -nP -iTCP:8091 -sTCP:LISTEN` — empty means free). If it's taken (shared machine,
@@ -270,16 +363,18 @@ test. Two prerequisites for the command:
   with `ipconfig getifaddr en0` (macOS).
 
 ```bash
-# Persona path (generated tasks, differentiated by your seed):
+# Mutation path (recommended): serve your mutated package.
+python neurons/miner.py --mode wire --task-dir my_task_<id> \
+  --quota 2 --port 8091 --host 0.0.0.0 \
+  --wallet.name my-dolores --wallet.hotkey miner
+
+# OR persona fallback (generated tasks, differentiated by your seed):
 python neurons/miner.py --mode wire --persona honest \
   --seed 730214 --quota 2 --port 8091 --host 0.0.0.0 \
   --wallet.name my-dolores --wallet.hotkey miner
-
-# OR authored-task path (serve your own validated package):
-python neurons/miner.py --mode wire --task-dir path/to/my_task \
-  --quota 2 --port 8091 --host 0.0.0.0 \
-  --wallet.name my-dolores --wallet.hotkey miner
 ```
+
+`--task-dir` accepts a single package directory or a parent of several, and is repeatable.
 
 Wait for the log line `wire_miner_started ... endpoint=<host>:<port> hotkey=<ss58>`.
 (The first axon bind may trigger a macOS/Linux firewall prompt — the human should allow it.)
@@ -301,8 +396,8 @@ Wait for the log line `wire_miner_started ... endpoint=<host>:<port> hotkey=<ss5
 ```
 
 **Do not spam.** The dedup gate catches near-copies; resubmitting the same package (or a trivial
-variant) earns **zero** and wastes your per-epoch quota. Serve distinct, seed-differentiated
-tasks. Keep the process running so the validator can reach you at query time.
+variant) earns **zero** and wastes your per-epoch quota. Serve distinct, meaningfully-mutated (or
+seed-differentiated) tasks. Keep the process running so the validator can reach you at query time.
 
 ---
 
@@ -331,8 +426,9 @@ do not attempt any of the above "to make a harder task."
 [ ] EVERY chain command carries --network test and --netuid 523
 [ ] btcli subnets register --netuid 523 --network test ...  (human ran it)
 [ ] btcli subnets show --netuid 523 --network test          -> my hotkey/UID present
-[ ] task ready: EITHER offline emit (--persona honest --seed <UNIQUE>) printed
-    ALL_LOCAL_GATES_PASS, OR authored dir passed scripts/validate_task.py
+[ ] task ready (recommended): prepare_mutation_task.py fork, mutated meaningfully,
+    validate_task.py --run-tests PASSED and --dedup-against examples/tasks max < 0.7
+[ ] (or persona fallback: --persona honest --seed <UNIQUE> printed ALL_LOCAL_GATES_PASS)
 [ ] port free (lsof check), then miner serving: --mode wire ... --host 0.0.0.0
 [ ] log shows wire_miner_started
 [ ] discovered: --publish flags added and log shows axon_publish=ok,

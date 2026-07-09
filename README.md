@@ -55,6 +55,8 @@ Honest snapshot. Full evidence in [`docs/testnet-status.md`](docs/testnet-status
 | Commit-reveal verified off | done |
 | Validator permit granted | done |
 | First public live weights | done |
+| On-chain miner discovery (axon published) | pending |
+| Incentive + per-uid emission (first Yuma pass) | done |
 
 The first public testnet weight update landed on netuid 523 on 2026-07-09:
 extrinsic `7520191-8`, with direct read-back `Weights[523,0] = [(1, 65535)]`.
@@ -162,9 +164,15 @@ Stated plainly:
 - **First-party miners at launch.** The two registered miners are operated by
   the project; external miners are on the roadmap.
 - **First public weights are live on testnet.** The initial public submit used a
-  direct async substrate fallback after the SDK dry-run path hit testnet
-  websocket hangs; the emitted vector and read-back are documented in
-  `docs/testnet-status.md`.
+  minimal direct async-substrate fallback after the repo SDK dry-run path hit
+  testnet websocket hangs; the emitted vector and read-back are documented in
+  `docs/testnet-status.md`. Yuma consensus has since processed the weights:
+  the weighted miner shows `incentive = 1.0` with nonzero per-uid alpha
+  emission, and the validator shows `dividends = 1.0`. Miners were served with
+  explicit endpoints (no axon published on-chain yet), so on-chain miner
+  discovery is not claimed, and subnet-level TAO emission is ~0 — expected
+  for a fresh testnet subnet at the price floor. Testnet carries no economic
+  value.
 - **Difficulty calibration is mock by default.** The frontier-difficulty signal
   comes from a pinned mock solver panel unless calibration mode is explicitly
   enabled against named models. Real calibration is opt-in, budget-capped, and

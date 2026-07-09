@@ -30,6 +30,12 @@ The immediate path is narrow and sequential:
    the sidecar artifact. *(planned)*
 3. **External cohort miners.** Have at least one non-first-party participant
    serve an authored task package and earn nonzero weight on testnet. *(planned)*
+4. **On-chain miner discovery.** Publish miner axons via `serve_axon` so miners
+   are discoverable on-chain and show `ACTIVE`, instead of being served with
+   explicit endpoints handed to the validator. *(planned)*
+5. **Emission/incentive observation.** After further tempo boundaries, record
+   whether incentive/emission remain zero (fresh-testnet behavior) or begin to
+   accrue, and document the finding. *(planned)*
 
 ## Mid term — open the network
 

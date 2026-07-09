@@ -164,15 +164,20 @@ def run_chain(args: argparse.Namespace, mode: Mode) -> int:
                 file=sys.stderr,
             )
             return 2
+        try:
+            discovered = chain_client.miner_endpoints()
+        except Exception as exc:  # noqa: BLE001 - discovery must fail closed, not crash
+            print(f"metagraph discovery failed: {exc}", file=sys.stderr)
+            return 2
         endpoints = [
             MinerEndpoint(
                 host=str(item["host"]),
                 port=int(item["port"]),
                 hotkey=str(item["hotkey"]),
                 uid=int(item["uid"]),
-                coldkey=str(item.get("coldkey", wallet.coldkeypub.ss58_address)),
+                coldkey=str(item.get("coldkey") or wallet.coldkeypub.ss58_address),
             )
-            for item in chain_client.miner_endpoints()
+            for item in discovered
         ]
         if not endpoints:
             print("no miner axons discovered from metagraph", file=sys.stderr)

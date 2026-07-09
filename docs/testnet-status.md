@@ -65,7 +65,47 @@ minimal direct async substrate fallback that composed the same
 `SubtensorModule.set_weights` call for `dests=[1]`, `weights=[65535]`,
 `version_key=1`, signed by the validator hotkey on `network=test`. The
 wire-mode validator artifact immediately before the submit scored miner-0 at
-`1.0` and miner-1 at `0.0`, and replay checked `REPLAY OK`.
+`1.0` and miner-1 at `0.0`, and replay checked `REPLAY OK`. The direct storage
+read-back `Weights[523,0] = [(1, 65535)]` confirms the fallback payload landed
+exactly as intended.
+
+## Metagraph readout: what is and isn't claimed
+
+- **UPDATED (validator uid 0).** `UPDATED` counts blocks since a UID last set
+  weights. It reset from roughly `7310` to `3` on submit — the metagraph
+  confirming the validator set weights recently. Miners never set weights, so
+  their `UPDATED` simply grows; that is expected.
+- **AXON = none.** `serve_axon` was deliberately not called for the first
+  submit. Miners ran as local axons and the validator was pointed at them with
+  explicit endpoints, keeping the first public weight event fully controlled.
+  On-chain miner discovery is a separate, later milestone.
+- **ACTIVE (miners) = false — cosmetic.** On-chain, `active` means
+  `current_block − last_update < activity_cutoff` (5000 blocks here), and
+  `last_update` is refreshed only by that hotkey's own `set_weights`. Miners
+  never set weights, so miner `ACTIVE` stays false permanently — and it does
+  **not** gate rewards: the weighted miner earns full incentive and emission
+  with `active=false`. The validator's `ACTIVE` flipped true when it set
+  weights. Publishing an axon does not change this flag.
+- **INCENTIVE / EMISSION — live since the first Yuma pass.** Yuma consensus
+  ran at the tempo boundary (~20 min) after the submit. Verified on-chain
+  (2026-07-09 ~07:40 UTC): miner uid 1 `incentive = 1.0` with per-uid alpha
+  emission ≈ 147.6 α/tempo; validator uid 0 `dividends = 1.0`,
+  `vtrust = 1.0`; unweighted miner uid 2 all zeros. The incentive pipeline
+  works end to end. The one number that stays ~0 is **subnet-level TAO
+  emission** — the subnet's share of network TAO, driven by alpha price
+  (~0.0042 τ, the floor); expected to stay ~0 on public testnet
+  indefinitely. Testnet tokens carry no economic value.
+
+## Next milestones
+
+- Publish miner axons on-chain (`serve_axon` / `btcli axon set`) so miners
+  are discoverable from the metagraph — enabling the validator to run without
+  explicit `--miner-endpoints`. (Note: publication populates `AXON`; it does
+  not flip miner `ACTIVE`, which is weights-based and cosmetic for miners.)
+- Make the repo-native SDK weight path retry-aware and reliably
+  receipt-writing, so live weights are repeatable without the manual fallback.
+- Repeat weight submissions across tempo boundaries and record incentive/
+  emission stability (first pass verified 2026-07-09).
 
 ## Chain-safety posture
 

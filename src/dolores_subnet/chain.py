@@ -75,6 +75,37 @@ class HotkeyUidMapping:
     dropped_hotkeys: list[str]
 
 
+class ChainReadTimeout(RuntimeError):
+    """A chain read exceeded its deadline (websocket hang guard)."""
+
+
+CHAIN_READ_TIMEOUT_SECONDS = 90.0
+
+
+def bounded_call(fn: Any, *args: Any, timeout: float = CHAIN_READ_TIMEOUT_SECONDS, **kwargs: Any):
+    """Run a blocking chain read with a hard deadline.
+
+    Raises ChainReadTimeout on expiry — never returns a default — so hangs
+    flow into the same fail-closed error paths as any other read failure
+    (rpc_unreachable receipts, preflight FAIL). The worker thread may leak
+    until process exit; acceptable for one-shot CLI processes.
+    """
+
+    import concurrent.futures
+
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(fn, *args, **kwargs)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError as exc:
+            raise ChainReadTimeout(
+                f"chain read exceeded {timeout:.0f}s (testnet websocket hang guard)"
+            ) from exc
+    finally:
+        executor.shutdown(wait=False)
+
+
 class _Substrate:
     """Thin lazy facade around Bittensor SDK calls.
 
@@ -89,7 +120,7 @@ class _Substrate:
         self.network = network
         self.netuid = netuid
         self.wallet = bt.Wallet(name=wallet_name, hotkey=wallet_hotkey)
-        self.subtensor = bt.Subtensor(network=network)
+        self.subtensor = bounded_call(bt.Subtensor, network=network)
         self._metagraph: Any | None = None
 
     @property
@@ -98,8 +129,8 @@ class _Substrate:
 
     def block(self) -> int:
         if hasattr(self.subtensor, "get_current_block"):
-            return int(self.subtensor.get_current_block())
-        return int(self.subtensor.block)
+            return int(bounded_call(self.subtensor.get_current_block))
+        return int(bounded_call(lambda: self.subtensor.block))
 
     def subnet_exists(self) -> bool:
         fn = getattr(self.subtensor, "subnet_exists", None)
@@ -114,9 +145,11 @@ class _Substrate:
     def sync_metagraph(self) -> Any:
         if self._metagraph is None:
             try:
-                self._metagraph = self.subtensor.metagraph(netuid=self.netuid, lite=True)
+                self._metagraph = bounded_call(
+                    self.subtensor.metagraph, netuid=self.netuid, lite=True
+                )
             except TypeError:
-                self._metagraph = self.subtensor.metagraph(self.netuid)
+                self._metagraph = bounded_call(self.subtensor.metagraph, self.netuid)
         return self._metagraph
 
     def hotkey_uid(self, hotkey: str) -> int | None:
@@ -217,14 +250,18 @@ class _Substrate:
                 continue
             axon = axons[index]
             port = _to_int(getattr(axon, "port", 0))
-            if port <= 0:
+            host = str(getattr(axon, "ip", "") or "")
+            # Unpublished axons read back as 0.0.0.0:0 — never fabricate an
+            # endpoint (esp. not loopback) for a miner that never served.
+            if port <= 0 or host in {"", "0.0.0.0", "::", "[::]"}:
                 continue
+            uid = self.hotkey_uid(hotkey)
             endpoints.append(
                 {
-                    "host": str(getattr(axon, "ip", "127.0.0.1") or "127.0.0.1"),
+                    "host": host,
                     "port": port,
                     "hotkey": hotkey,
-                    "uid": self.hotkey_uid(hotkey) or index,
+                    "uid": uid if uid is not None else index,
                     "coldkey": str(getattr(axon, "coldkey", "")),
                 }
             )

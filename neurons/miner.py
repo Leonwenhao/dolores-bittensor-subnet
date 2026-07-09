@@ -125,6 +125,22 @@ def build_parser() -> argparse.ArgumentParser:
             "may be a single package dir or a parent of package dirs; repeatable"
         ),
     )
+    parser.add_argument(
+        "--publish",
+        action="store_true",
+        help=(
+            "publish this axon on-chain via serve_axon (signed by the hotkey; "
+            "requires --netuid and an allowlisted --network; off by default)"
+        ),
+    )
+    parser.add_argument("--netuid", type=int, default=None)
+    parser.add_argument("--network", default=None)
+    parser.add_argument(
+        "--external-ip",
+        default=None,
+        help="IP to publish on-chain (e.g. your LAN IP); bind address stays --host",
+    )
+    parser.add_argument("--external-port", type=int, default=None)
     return parser
 
 
@@ -146,6 +162,41 @@ def main() -> int:
     miner = _build_miner(args, hotkey=f"local-{persona}", persona=persona)
     print(json.dumps(miner.submissions(epoch_id=1, quota=args.quota), indent=2, sort_keys=True))
     return 0
+
+
+def _publish_axon(args: argparse.Namespace, *, axon: Any) -> None:
+    """Publish the axon on-chain via serve_axon — only with explicit --publish.
+
+    Hotkey-signed metadata write (ip/port only; no stake, no weights).
+    The network allowlist is asserted before any chain object is built, so a
+    mistyped network can never reach mainnet. Failure is non-fatal: the axon
+    keeps serving locally and the explicit --miner-endpoints path still works.
+    """
+
+    if not args.publish:
+        print("axon_publish=skipped reason=no_publish_flag", flush=True)
+        return
+    from dolores_subnet.config import assert_safe_network
+
+    network = assert_safe_network(args.network)
+    if args.netuid is None:
+        raise SystemExit("--netuid is required with --publish")
+    import bittensor as bt
+
+    external_ip = args.external_ip or args.host
+    external_port = args.external_port or args.port
+    try:
+        subtensor = bt.Subtensor(network=network)
+        response = subtensor.serve_axon(netuid=args.netuid, axon=axon)
+        success = bool(getattr(response, "success", response))
+        message = str(getattr(response, "message", "") or "")
+        print(
+            f"axon_publish={'ok' if success else 'failed'} netuid={args.netuid} "
+            f"external={external_ip}:{external_port} message={message}",
+            flush=True,
+        )
+    except Exception as exc:  # noqa: BLE001 - publish failure must not kill serving
+        print(f"axon_publish=failed netuid={args.netuid} error={exc}", flush=True)
 
 
 def serve_wire(args: argparse.Namespace, *, persona: str) -> int:
@@ -177,10 +228,11 @@ def serve_wire(args: argparse.Namespace, *, persona: str) -> int:
         wallet=wallet,
         port=args.port,
         ip=args.host,
-        external_ip=args.host,
-        external_port=args.port,
+        external_ip=args.external_ip or args.host,
+        external_port=args.external_port or args.port,
     )
     axon.attach(forward_fn=forward, verify_fn=verify).start()
+    _publish_axon(args, axon=axon)
     source = f"task_dirs={','.join(args.task_dirs)}" if args.task_dirs else f"persona={persona}"
     print(
         "wire_miner_started "

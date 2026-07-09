@@ -29,8 +29,12 @@ verifiable, frontier-difficulty** tasks. What earns **zero**: duplicates/near-co
 whose grader is broken (reference fails, or wrong solutions pass), unsafe tasks, and spam.
 
 Honest expectations (state these to the human, do not oversell):
-- Testnet only. **Testnet TAO has no monetary value.** This is a young subnet; the validator
-  permit and first public live weights are still pending.
+- Testnet only. **Testnet TAO has no monetary value.** This is a young subnet: the first
+  public live weights have landed (extrinsic `7520191-8`) and the first Yuma pass assigned
+  the weighted miner `incentive = 1.0` with real per-uid alpha emission. Miner `ACTIVE`
+  flags read false — that is cosmetic (it tracks weight-setting, which miners never do) and
+  does not gate rewards. Alpha earned here has **no monetary value**; the point is a
+  working, scored, incentivized submission — not payout.
 - Weights lag: the subnet tempo is ~72 minutes, so scores/weights update slowly, not instantly.
 - Scores measure **verification quality and difficulty signal** — NOT downstream training
   value. Do not claim your task "improves model training."

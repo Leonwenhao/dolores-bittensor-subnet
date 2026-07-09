@@ -12,9 +12,11 @@ Rules you must never break:
 - **Never handle key material.** Never ask for, read, print, or write a mnemonic, seed phrase,
   or private key. Wallet creation is done by the human in their own terminal. You may read
   public data only (ss58 addresses, balances).
-- **Signed/on-chain actions are the human's to run.** You may draft the exact command, but the
-  human presses enter on anything that spends testnet TAO or signs an extrinsic (wallet
-  creation, registration).
+- **You may run testnet-signed actions yourself** (registration, `serve --publish`) — no
+  hand-off needed — provided you (a) state in one line what the command signs and spends
+  *before* running it, (b) the wallet already exists on this machine, and (c) the command
+  carries `--network test --netuid 523`. If a wallet **password prompt** appears, the human
+  types it. **STOP and ask the human on anything unexpected.**
 
 ---
 
@@ -54,16 +56,16 @@ don't skip §4 (mainnet safety) or §9 (unsafe tasks).
    (ask the operator for it), then install everything:
    `export DOLORES_REPO="<path-to-dolores-autocurricula>"` then
    `pip install -e ".[dev]" && pip install bittensor-cli && pip install -e "$DOLORES_REPO"`
-2. Human creates the wallet (human's terminal, never you — §3):
-   `btcli wallet create --wallet.name my-dolores --wallet.hotkey miner`
-3. Human sends their **coldkey ss58** (from `btcli wallet list`, read-only) to the operator to
-   request funding — the recycle fee is tiny but you cannot register on `0` (§3).
+2. Verify prerequisites (participants arrive with btcli + a funded testnet wallet):
+   `btcli --version` prints a version, and
+   `btcli wallet balance --wallet.name <W> --network test` shows a balance **> 0** (read-only).
+   No wallet or zero balance? → see "If you need a wallet or funds" below.
 
-**While those wait — mutate a task (no engine/chain needed to edit):**
+**While that verifies — mutate a task (no engine/chain needed to edit):**
 
-4. Fork a known-good task: `python scripts/prepare_mutation_task.py --name <your_id>`
+3. Fork a known-good task: `python scripts/prepare_mutation_task.py --name <your_id>`
    (creates `my_task_<your_id>/`, rewrites `task_id`, deletes the stale `wire.json`).
-5. Mutate **meaningfully** — change the file *bytes* (new grammar/format/edge case), tag the
+4. Mutate **meaningfully** — change the file *bytes* (new grammar/format/edge case), tag the
    edge logic with `# PROBE-DROP` + add a hidden test hitting exactly that edge, then rewrite
    the prompt and `descriptors.concepts`. Keep `lineage.parent_task_id: null`. A rename or
    story-text tweak scores **zero** — see the "Mutation Guide" section for the good/bad table
@@ -71,26 +73,27 @@ don't skip §4 (mainnet safety) or §9 (unsafe tasks).
    (`some_file.py: |` followed by indented plain Python) — zero escaping needed. The forked
    file arrives in double-quoted escaped style, which is error-prone for backslash-heavy
    code; you may freely convert it.
-6. Prove the reference passes its own tests:
+5. Prove the reference passes its own tests:
    `python scripts/validate_task.py --task-dir my_task_<your_id> --run-tests`
-7. Prove it isn't a near-copy:
+6. Prove it isn't a near-copy:
    `python scripts/validate_task.py --task-dir my_task_<your_id> --dedup-against examples/tasks`
    (aim for max duplicate_score **< 0.7**; ≥0.85 is zero pay). Then the walletless
    serve-proof — this prints the exact wire JSON you will serve, no wallet needed:
    `python neurons/miner.py --mode offline --task-dir my_task_<your_id> --quota 1`
 
-**Once funded — register and serve (signed steps are the human's; §4–§5, §8):**
+**Once verified — register and serve (announce-then-run each signed step; §4–§5, §8):**
 
-8. Human registers (needs funds): `btcli subnets register --netuid 523 --network test
+7. Register (signs an extrinsic, spends ~0.0005 τ recycle fee — announce it, then run):
+   `btcli subnets register --netuid 523 --network test
    --wallet.name my-dolores --wallet.hotkey miner`
-9. Confirm registration (read-only): `btcli subnets show --netuid 523 --network test`
-10. Pick a free port: `lsof -nP -iTCP:8091 -sTCP:LISTEN` (empty = free); find LAN IP:
-    `ipconfig getifaddr en0`.
-11. Serve + publish on-chain (human runs it — it signs `serve_axon` with the hotkey, moves no
-    funds): `python neurons/miner.py --mode wire --task-dir my_task_<your_id> --quota 2
+8. Confirm registration (read-only): `btcli subnets show --netuid 523 --network test`
+9. Pick a free port: `lsof -nP -iTCP:8091 -sTCP:LISTEN` (empty = free); find LAN IP:
+   `ipconfig getifaddr en0`.
+10. Serve + publish on-chain (signs `serve_axon` with the hotkey, moves no funds — announce it,
+    then run): `python neurons/miner.py --mode wire --task-dir my_task_<your_id> --quota 2
     --port 8091 --host 0.0.0.0 --wallet.name my-dolores --wallet.hotkey miner
     --publish --network test --netuid 523 --external-ip <YOUR_LAN_IP>`
-12. Wait for `wire_miner_started` then `axon_publish=ok`; leave the process running. (Fallback if
+11. Wait for `wire_miner_started` then `axon_publish=ok`; leave the process running. (Fallback if
     not publishing: hand the operator `<ip>:<port>:<hotkey-ss58>` — §8.)
 
 The persona/seed generator ("Fallback: generated tasks by seed" below) exists if mutation feels
@@ -150,33 +153,19 @@ checkout (e.g. `pip install -e "$DOLORES_REPO"`) before continuing.
 
 ---
 
-## 3. Create a testnet wallet (human runs these)
+## 3. If you need a wallet or funds (conditional)
 
-The human runs these in their own terminal. **You (the agent) must not run wallet-create
-commands, and must never see the mnemonic.** Pick a wallet name and hotkey name (examples below;
-let the human choose).
+Most participants arrive with a wallet already created and funded — skip this section if §2's
+balance check passed. Only if there is **no wallet** or the balance is **0**:
 
-```bash
-btcli wallet create --wallet.name my-dolores --wallet.hotkey miner
-# (wallet creation is local — no network flag involved. If regenerating an existing
-#  key, the human uses `btcli wallet regen_*` privately — never paste a mnemonic into
-#  this chat, a file, or any command you run.)
-```
-
-The human writes the mnemonic down offline. When done, verify **read-only** that the wallet
-exists and check its balance:
-
-```bash
-btcli wallet balance --wallet.name my-dolores --network test
-```
-
-- **Getting testnet TAO:** the faucet is Discord-gated and often disabled on-chain. **Tonight
-  the operator will fund your coldkey** so you can pay the registration recycle fee. Ask the
-  operator, giving them your **coldkey ss58 address** (public, safe to share) — get it with
-  `btcli wallet list` (read-only).
-
-STOP if balance is `0` when you reach section 5 — you cannot register without a small amount of
-testnet TAO. Ask the operator to fund you.
+- **No wallet?** The human runs the create in **their own terminal** — never you, and the
+  mnemonic must never be pasted into this chat, a file, or any command you run (key-material
+  rule): `btcli wallet create --wallet.name my-dolores --wallet.hotkey miner`. The human writes
+  the mnemonic down offline. Then re-check read-only:
+  `btcli wallet balance --wallet.name my-dolores --network test`.
+- **Zero balance?** The faucet is Discord-gated and often disabled on-chain, so **the operator
+  funds your coldkey** for the registration recycle fee. Give them your **coldkey ss58 address**
+  (public, safe to share) from `btcli wallet list` (read-only). You cannot register on `0`.
 
 ---
 
@@ -190,11 +179,13 @@ Before you emit ANY `btcli` or `bittensor` command:
 
 ---
 
-## 5. Register on netuid 523 (signed action — human runs it)
+## 5. Register on netuid 523 (signed action — announce, then run)
 
 Registration costs a small **recycle fee** (currently ~0.0005 testnet TAO — dynamic; it
-rises slightly with each registration) burned from your coldkey. This is a
-signed extrinsic: **the human runs it.** You draft it exactly:
+rises slightly with each registration) burned from your coldkey. This is a signed extrinsic:
+per the rules header, **state in one line that it signs registration and spends ~0.0005 τ, then
+run it yourself** (wallet already exists, `--network test --netuid 523` present). If a wallet
+password prompt appears, the human types it. The command:
 
 ```bash
 btcli subnets register --netuid 523 --network test \
@@ -384,11 +375,11 @@ Wait for the log line `wire_miner_started ... endpoint=<host>:<port> hotkey=<ss5
 1. **Auto-discovery (preferred): publish your axon on-chain.** Add these flags to the serve
    command above: `--publish --network test --netuid 523 --external-ip <YOUR_LAN_IP>`
    (and `--external-port <PORT>` if it differs from `--port`). This signs a `serve_axon`
-   extrinsic with **your hotkey** — it publishes only your IP and port, moves no funds, and
-   because the human runs the miner command, the human is the one signing. Wait for the log
-   line `axon_publish=ok`. The operator's validator then discovers you from the metagraph
-   automatically — nothing to hand over. (One publish per ~50 blocks per hotkey; re-running
-   with the same IP/port is a free no-op.)
+   extrinsic with **your hotkey** — it publishes only your IP and port and moves no funds.
+   Per the rules header, announce that one line (signs `serve_axon`, spends nothing), then run
+   it yourself. Wait for the log line `axon_publish=ok`. The operator's validator then
+   discovers you from the metagraph automatically — nothing to hand over. (One publish per ~50
+   blocks per hotkey; re-running with the same IP/port is a free no-op.)
 2. **Fallback: hand the operator your endpoint triple** exactly as they need it:
 
 ```
@@ -424,7 +415,7 @@ do not attempt any of the above "to make a harder task."
 [ ] python -c "import dolores"  -> no error
 [ ] btcli wallet balance --wallet.name <W> --network test   -> funded (>0)
 [ ] EVERY chain command carries --network test and --netuid 523
-[ ] btcli subnets register --netuid 523 --network test ...  (human ran it)
+[ ] btcli subnets register --netuid 523 --network test ...  (announced, then agent-run)
 [ ] btcli subnets show --netuid 523 --network test          -> my hotkey/UID present
 [ ] task ready (recommended): prepare_mutation_task.py fork, mutated meaningfully,
     validate_task.py --run-tests PASSED and --dedup-against examples/tasks max < 0.7

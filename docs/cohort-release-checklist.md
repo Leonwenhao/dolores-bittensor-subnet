@@ -150,12 +150,12 @@ These are local/configuration gates until publication is explicitly approved.
 
 | Status | Gate | Required evidence |
 |---|---|---|
-| PENDING-HUMAN | A private reporting channel exists. | GitHub setting read-back or documented private advisory/contact channel. |
+| PASS | A private reporting channel exists. | Approved enablement followed by GitHub API read-back `{"enabled":true}` at `2026-07-12T19:32:08Z`. |
 | PENDING-HUMAN | The pending report referenced by public issue #4 has been received privately. | Private advisory identifier only; no finding details in this checklist. |
 | PENDING-HUMAN | Findings have been triaged against the release candidate. | Private triage record with owner and disposition. |
 | PENDING-HUMAN | Required fixes and regression tests pass before public cohort publication. | Private advisory cross-reference plus public-safe test evidence. |
 
-Until these rows pass, use `PENDING-HUMAN`. Follow
+Until the remaining rows pass, use `PENDING-HUMAN`. Follow
 [`security-disclosure-packet.md`](security-disclosure-packet.md); never paste
 the findings into public issues, commits, logs, or this checklist.
 

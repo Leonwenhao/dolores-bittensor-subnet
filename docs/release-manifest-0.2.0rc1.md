@@ -1,9 +1,11 @@
 # Dolores Bittensor Subnet 0.2.0rc1 local release manifest
 
-- Review timestamp: `2026-07-12T17:44:57Z`
+- Review timestamp: `2026-07-12T19:32:08Z`
 - Intended tag: `v0.2.0-rc.1`
-- Intended tag target and subnet artifact source commit:
+- Current canonical subnet artifact source commit:
   `30475e724a1e04ed34c8640a02be655b41794d35`
+- Intended tag target: pending private report receipt, triage, and any required
+  rebuild; no tag is currently authorized.
 - Engine public artifact source commit:
   `814d9bcc451a36db1b341c2ddd6f27d1aaed565b`
 - Fixed build epoch: `SOURCE_DATE_EPOCH=1783869698`
@@ -12,8 +14,9 @@
 
 This manifest is intentionally outside the subnet source distribution. It can
 record the exact source commit and artifact digests without making the packaged
-checklist self-referential. The intended tag remains the artifact source commit
-above; this later evidence-only manifest commit is not the tag target.
+checklist self-referential. The canonical artifacts remain a pre-triage local
+candidate. If private triage changes source or public evidence, rebuild and
+rehash them before selecting a tag target.
 
 ## Immutable artifact digests
 
@@ -79,8 +82,9 @@ during these gates.
 
 | Gate | Status | Reason |
 |---|---|---|
-| GitHub private vulnerability reporting | `PENDING-HUMAN` | Read-only GitHub read-back on 2026-07-12 returned `{"enabled":false}`; public issue #4 remained open with zero comments |
-| Private report receipt and triage | `PENDING-HUMAN` | The pending finding has not been received through a private channel |
+| Private vulnerability reporting channel | `PASS` | Approved enablement followed by GitHub API read-back `{"enabled":true}` at `2026-07-12T19:32:08Z` |
+| Private report receipt | `PENDING-HUMAN` | Issue #4 remains open with zero comments; no private advisory identifier has been received |
+| Private report triage | `PENDING-HUMAN` | Requires the private report, affected-RC assessment, owner, disposition, and any regression evidence |
 | Public engine and subnet artifacts | `PENDING-HUMAN` | Engine has no remote and both repositories have unpublished local commits; remote creation, push, release, and tag require approval |
 | Hosted CI checks | `PENDING-HUMAN` | The workflow consumes the future public engine asset and cannot pass remotely until that exact asset exists |
 | External HackerQuest miner | `PENDING-HUMAN` | No non-first-party participant has installed or served this RC |
@@ -98,7 +102,7 @@ health or external-cohort proof.
 
 The source and canonical local artifacts are **conditionally ready for operator
 review**. They are **not authorized for publication or participant onboarding**
-and are not public-launch ready. Security intake/triage, public artifact
+and are not public-launch ready. Private report receipt/triage, public artifact
 publication, successful hosted CI, RC redeployment, authoritative external
 health, and two consecutive nonzero external-miner epochs remain explicit gates.
 Controlled-cohort readiness does not imply permissionless, production, mainnet,

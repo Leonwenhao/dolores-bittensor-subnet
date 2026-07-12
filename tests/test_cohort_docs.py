@@ -45,3 +45,17 @@ def test_packaged_checklist_uses_external_subnet_provenance() -> None:
     assert "a6cc2ce41c867e221e2ecbe44a9168d8235a609c81a487b18d055946c3d35078" in checklist
     assert "219605da24bf86862b20802f07315ab5869ca402e0810e5c12e4e8aeb1e017a0" in checklist
     assert "sha256:ac7a99b6f218563c6ea2f701e0ae4727854d998220fa6bfa5a90b78af4dec4e5" in checklist
+
+
+def test_security_docs_record_enabled_channel_without_overclaiming_triage() -> None:
+    checklist = _text("docs/cohort-release-checklist.md")
+    packet = _text("docs/security-disclosure-packet.md")
+    manifest = _text("docs/release-manifest-0.2.0rc1.md")
+
+    assert '| PASS | A private reporting channel exists. |' in checklist
+    assert '`{"enabled":true}` at `2026-07-12T19:32:08Z`' in checklist
+    assert "The private-channel gate is now `PASS`" in packet
+    assert "Sending the reply is a separate external communication" in packet
+    assert "| Private vulnerability reporting channel | `PASS` |" in manifest
+    assert "| Private report receipt | `PENDING-HUMAN` |" in manifest
+    assert "| Private report triage | `PENDING-HUMAN` |" in manifest

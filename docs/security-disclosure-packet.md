@@ -1,7 +1,7 @@
 # Security Disclosure Enablement and Triage Packet
 
-This packet prepares the human-gated action required to receive the pending
-private security report without exposing vulnerability details.
+This packet records the completed intake enablement and prepares the still
+human-gated reply and private triage without exposing vulnerability details.
 
 ## Current public facts
 
@@ -9,26 +9,24 @@ private security report without exposing vulnerability details.
 - Public issue: #4, “Enable private vulnerability reporting (or share a
   security contact) for a pending disclosure”
 - `SECURITY.md` directs reporters to GitHub private security advisories.
-- A read-only GitHub API check on 2026-07-12 returned
-  `{"enabled":false}` for the repository's private-vulnerability-reporting
-  setting.
+- An approved GitHub API change followed by read-back at
+  `2026-07-12T19:32:08Z` returned `{"enabled":true}` for the repository's
+  private-vulnerability-reporting setting.
 - Issue #4 intentionally contains no vulnerability details, and none are
   reproduced here.
 
-The controlled cohort security gate remains `PENDING-HUMAN` until a private
-channel exists, the report is received, and the release-relevant findings are
-triaged.
+The private-channel gate is now `PASS`. The overall controlled-cohort security
+gate remains `PENDING-HUMAN` until the report is received and its
+release-relevant findings are triaged.
 
-## STOP-LEON action
+## Completed authorized enablement
 
-`STOP-LEON`
+Status: `PASS`
 
-1. **Exact proposed action**
+1. **Exact completed action**
 
-   Enable GitHub private vulnerability reporting for
-   `Leonwenhao/dolores-bittensor-subnet`. If the repository UI cannot expose that
-   setting, provide the reporter with a private security contact or invite them
-   to a draft private GitHub Security Advisory instead.
+   GitHub private vulnerability reporting was enabled for
+   `Leonwenhao/dolores-bittensor-subnet` after explicit operator approval.
 
 2. **What this changes, signs, spends, or publishes**
 
@@ -37,23 +35,20 @@ triaged.
    findings, sign a wallet action, spend funds, contact cohort participants, or
    write to Bittensor.
 
-3. **Exact UI step**
+3. **Exact API operation and read-back**
 
-   In the GitHub repository, open **Settings**, locate the repository's
-   **Security** or **Code security and analysis** settings, find **Private
-   vulnerability reporting**, and select **Enable**. GitHub may move the setting
-   between Security and Advanced Security sections; verify the setting by
-   reading it back as enabled before replying to the reporter.
+   The approved operation used GitHub's documented
+   `PUT /repos/{owner}/{repo}/private-vulnerability-reporting` endpoint. A
+   subsequent `GET` returned `{"enabled":true}`.
 
-   Do not use a mutating API or CLI command on the operator's behalf without the
-   same explicit approval.
+   No issue reply, advisory content, repository code, or chain state changed.
 
 4. **Evidence that prerequisites are met**
 
    - the repository is public;
    - `SECURITY.md` already requests private advisories;
    - issue #4 records a reporter waiting for a private channel;
-   - the 2026-07-12 read-only setting check reports disabled;
+   - the post-change read-back reports enabled;
    - no vulnerability details need to be moved through a public channel.
 
 5. **Rollback or recovery**
@@ -105,7 +100,7 @@ descriptions, CI logs, cohort evidence, or launch copy.
 ## Cohort release consequences
 
 - Local implementation and non-publishing verification may continue while the
-  setting is pending.
+  report receipt and triage are pending.
 - Do not publish the cohort release, invite external miners, amplify the subnet,
   or claim cohort readiness before the report is privately received and triaged.
 - A finding that affects the controlled-cohort threat model must be fixed and

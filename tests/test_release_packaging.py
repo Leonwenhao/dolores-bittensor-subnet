@@ -16,7 +16,11 @@ from dolores_subnet import __version__
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RC_VERSION = "0.2.0rc1"
 GOLDEN_PARSER_HASH = "fbf1ca8f3b9cad51370332bb1329d03b16306d4828bed9674e1a3d2a2f80a249"
-ENGINE_WHEEL_SHA256 = "a6cc2ce41c867e221e2ecbe44a9168d8235a609c81a487b18d055946c3d35078"
+ENGINE_SOURCE_COMMIT = "9a0a84a54887dd9021dfdc00c496aee0975fe427"
+ENGINE_WHEEL_SHA256 = "3ac09c8cb857cd5fc81d23c70c77cf21c11efe745e80b6d5fc237ad359cd1ca4"
+ENGINE_SDIST_SHA256 = "8df5dc74daf91831377d2bf52253ddcebb1bf4df0b705816228f138d9797342b"
+SUBNET_WHEEL_SHA256 = "97e2dcd6592e94589b8492a1fc8ffaf449f1f11a3878cefca9059ee52cc2f665"
+SUBNET_SDIST_SHA256 = "0e8ca99a65ba92e23fced7e71f40a6b921dd618c726c8b74001f55faa2f52382"
 
 
 def test_release_metadata_pins_engine_sdk_and_installed_commands() -> None:
@@ -191,12 +195,24 @@ def test_ci_builds_and_smokes_checkout_independent_release_artifacts() -> None:
     assert isinstance(parsed, dict)
 
     release_job = workflow_text.split("  release-artifacts:\n", maxsplit=1)[1]
-    assert f"ENGINE_SHA256: {ENGINE_WHEEL_SHA256}" in workflow_text
+    assert f"ENGINE_SOURCE_COMMIT: {ENGINE_SOURCE_COMMIT}" in workflow_text
+    assert f"ENGINE_WHEEL_SHA256: {ENGINE_WHEEL_SHA256}" in workflow_text
+    assert f"ENGINE_SDIST_SHA256: {ENGINE_SDIST_SHA256}" in workflow_text
+    assert f"SUBNET_WHEEL_SHA256: {SUBNET_WHEEL_SHA256}" in workflow_text
+    assert f"SUBNET_SDIST_SHA256: {SUBNET_SDIST_SHA256}" in workflow_text
     assert f"GOLDEN_PARSER_HASH: {GOLDEN_PARSER_HASH}" in workflow_text
     assert 'PYTHON_VERSION: "3.11.15"' in workflow_text
     assert 'BUILD_VERSION: "1.5.1"' in workflow_text
     assert 'SETUPTOOLS_VERSION: "83.0.0"' in workflow_text
     assert 'WHEEL_VERSION: "0.47.0"' in workflow_text
+    assert (
+        "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4"
+        in workflow_text
+    )
+    assert (
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5"
+        in workflow_text
+    )
     assert "git archive \"$GITHUB_SHA\"" in release_job
     assert "python -m build --no-isolation --wheel --sdist" in release_job
     assert 'for copy in a b; do' in release_job
@@ -204,6 +220,8 @@ def test_ci_builds_and_smokes_checkout_independent_release_artifacts() -> None:
     assert 'python "$source_dir/scripts/normalize_sdist.py" \\' in release_job
     assert '--epoch "$SOURCE_DATE_EPOCH" \\' in release_job
     assert '"$dist_dir/dolores_bittensor_subnet-0.2.0rc1.tar.gz"' in release_job
+    assert 'echo "$SUBNET_WHEEL_SHA256  $SUBNET_WHEEL" | sha256sum --check --strict' in release_job
+    assert 'echo "$SUBNET_SDIST_SHA256  $SUBNET_SDIST" | sha256sum --check --strict' in release_job
     assert "tar --extract --gzip --file \"$SUBNET_SDIST\"" in release_job
     assert "cd /tmp" in release_job
     assert "/tmp/miner-venv" in release_job
@@ -213,6 +231,7 @@ def test_ci_builds_and_smokes_checkout_independent_release_artifacts() -> None:
     assert "clean_miner_golden_digest=" in release_job
     assert "clean_validator_golden_digest=" in release_job
     assert "clean_sdist_golden_digest=" in release_job
+    assert "systemd-analyze verify" in release_job
     assert "module_path.is_relative_to(Path(\"/tmp/sdist-venv\").resolve())" in release_job
     assert "DOLORES_REPO" not in release_job
     assert "pip install -e" not in release_job

@@ -14,11 +14,17 @@ env:
   SETUPTOOLS_VERSION: "83.0.0"
   WHEEL_VERSION: "0.47.0"
   ENGINE_VERSION: 0.2.0rc1
-  ENGINE_SHA256: a6cc2ce41c867e221e2ecbe44a9168d8235a609c81a487b18d055946c3d35078
+  ENGINE_SOURCE_COMMIT: 9a0a84a54887dd9021dfdc00c496aee0975fe427
+  ENGINE_WHEEL_SHA256: 3ac09c8cb857cd5fc81d23c70c77cf21c11efe745e80b6d5fc237ad359cd1ca4
+  ENGINE_SDIST_SHA256: 8df5dc74daf91831377d2bf52253ddcebb1bf4df0b705816228f138d9797342b
   ENGINE_WHEEL_URL: https://github.com/Leonwenhao/dolores-autocurricula/releases/download/v0.2.0-rc.1/dolores_autocurricula-0.2.0rc1-py3-none-any.whl
+  ENGINE_SDIST_URL: https://github.com/Leonwenhao/dolores-autocurricula/releases/download/v0.2.0-rc.1/dolores_autocurricula-0.2.0rc1.tar.gz
   ENGINE_WHEEL: /tmp/dolores_autocurricula-0.2.0rc1-py3-none-any.whl
+  ENGINE_SDIST: /tmp/dolores_autocurricula-0.2.0rc1.tar.gz
   SUBNET_WHEEL: /tmp/subnet-dist/dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl
   SUBNET_SDIST: /tmp/subnet-dist/dolores_bittensor_subnet-0.2.0rc1.tar.gz
+  SUBNET_WHEEL_SHA256: 97e2dcd6592e94589b8492a1fc8ffaf449f1f11a3878cefca9059ee52cc2f665
+  SUBNET_SDIST_SHA256: 0e8ca99a65ba92e23fced7e71f40a6b921dd618c726c8b74001f55faa2f52382
   SOURCE_DATE_EPOCH: "1783869698"
   GOLDEN_PARSER_HASH: fbf1ca8f3b9cad51370332bb1329d03b16306d4828bed9674e1a3d2a2f80a249
 
@@ -26,8 +32,8 @@ jobs:
   full-stack:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -35,7 +41,7 @@ jobs:
         run: |
           curl --fail --location --retry 3 \
             --output "$ENGINE_WHEEL" "$ENGINE_WHEEL_URL"
-          echo "$ENGINE_SHA256  $ENGINE_WHEEL" | sha256sum --check --strict
+          echo "$ENGINE_WHEEL_SHA256  $ENGINE_WHEEL" | sha256sum --check --strict
       - name: Install validator and development dependencies
         run: |
           python -m pip install "$ENGINE_WHEEL"
@@ -64,8 +70,8 @@ jobs:
   release-artifacts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -73,7 +79,10 @@ jobs:
         run: |
           curl --fail --location --retry 3 \
             --output "$ENGINE_WHEEL" "$ENGINE_WHEEL_URL"
-          echo "$ENGINE_SHA256  $ENGINE_WHEEL" | sha256sum --check --strict
+          curl --fail --location --retry 3 \
+            --output "$ENGINE_SDIST" "$ENGINE_SDIST_URL"
+          echo "$ENGINE_WHEEL_SHA256  $ENGINE_WHEEL" | sha256sum --check --strict
+          echo "$ENGINE_SDIST_SHA256  $ENGINE_SDIST" | sha256sum --check --strict
       - name: Build subnet wheel and source distribution
         run: |
           python -m pip install \
@@ -101,26 +110,36 @@ jobs:
           install -m 0644 /tmp/subnet-dist-a/* /tmp/subnet-dist/
           test -f "$SUBNET_WHEEL"
           test -f "$SUBNET_SDIST"
-          sha256sum "$SUBNET_WHEEL" "$SUBNET_SDIST"
+          echo "$SUBNET_WHEEL_SHA256  $SUBNET_WHEEL" | sha256sum --check --strict
+          echo "$SUBNET_SDIST_SHA256  $SUBNET_SDIST" | sha256sum --check --strict
           tar --list --gzip --file "$SUBNET_SDIST"
       - name: Assemble and extract the checkout-independent release bundle
         env:
-          ENGINE_SOURCE_COMMIT: 814d9bcc451a36db1b341c2ddd6f27d1aaed565b
           SUBNET_SOURCE_COMMIT: ${{ github.sha }}
         run: |
           rm -rf /tmp/bundle-smoke
+          rm -f /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz \
+            /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle-a.tar.gz \
+            /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle-b.tar.gz
           python -m pip install "$ENGINE_WHEEL"
           python -m pip install --no-deps "$SUBNET_WHEEL"
-          python scripts/build_release_bundle.py build \
-            --version "$ENGINE_VERSION" \
-            --source-date-epoch "$SOURCE_DATE_EPOCH" \
-            --engine-source-commit "$ENGINE_SOURCE_COMMIT" \
-            --subnet-source-commit "$SUBNET_SOURCE_COMMIT" \
-            --engine-wheel "$ENGINE_WHEEL" \
-            --subnet-wheel "$SUBNET_WHEEL" \
-            --subnet-sdist "$SUBNET_SDIST" \
-            --fixture-dir examples/tasks/honest_example \
-            --output /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz
+          for copy in a b; do
+            python scripts/build_release_bundle.py build \
+              --version "$ENGINE_VERSION" \
+              --source-date-epoch "$SOURCE_DATE_EPOCH" \
+              --engine-source-commit "$ENGINE_SOURCE_COMMIT" \
+              --subnet-source-commit "$SUBNET_SOURCE_COMMIT" \
+              --engine-wheel "$ENGINE_WHEEL" \
+              --subnet-wheel "$SUBNET_WHEEL" \
+              --subnet-sdist "$SUBNET_SDIST" \
+              --fixture-dir examples/tasks/honest_example \
+              --output "/tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle-$copy.tar.gz"
+          done
+          cmp /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle-a.tar.gz \
+            /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle-b.tar.gz
+          install -m 0644 \
+            /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle-a.tar.gz \
+            /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz
           python scripts/build_release_bundle.py verify \
             --version "$ENGINE_VERSION" \
             --source-date-epoch "$SOURCE_DATE_EPOCH" \
@@ -258,3 +277,16 @@ jobs:
           print(f"clean_sdist_golden_digest={expected}")
           print(f"clean_sdist_import={module_path}")
           PY
+      - name: Verify packaged systemd unit syntax on Ubuntu
+        run: |
+          source_root=/tmp/subnet-sdist-source/dolores_bittensor_subnet-0.2.0rc1
+          rm -rf /tmp/systemd-verify
+          install -d /tmp/systemd-verify
+          install -m 0644 "$source_root"/deploy/systemd/* /tmp/systemd-verify/
+          sed -i -E \
+            's#^(ExecStart(Post)?=)/opt/[^ ]+#\1/bin/true#; s/^User=.*/User=root/; s/^Group=.*/Group=root/; s/^SupplementaryGroups=.*/SupplementaryGroups=root/' \
+            /tmp/systemd-verify/*.service
+          systemd-analyze verify \
+            /tmp/systemd-verify/dolores-miner.service \
+            /tmp/systemd-verify/dolores-validator.service \
+            /tmp/systemd-verify/dolores-validator.timer

@@ -363,14 +363,16 @@ def test_ci_uses_fixed_epoch_builder_and_independent_verification() -> None:
         if step.get("name") == "Assemble and extract the checkout-independent release bundle"
     )
     assert parsed["env"]["SOURCE_DATE_EPOCH"] == str(SOURCE_DATE_EPOCH)
-    assert (
-        assembly["env"]["ENGINE_SOURCE_COMMIT"]
-        == "814d9bcc451a36db1b341c2ddd6f27d1aaed565b"
+    assert parsed["env"]["ENGINE_SOURCE_COMMIT"] == (
+        "9a0a84a54887dd9021dfdc00c496aee0975fe427"
     )
     run = assembly["run"]
+    assert 'for copy in a b; do' in run
     assert "scripts/build_release_bundle.py build" in run
     assert "scripts/build_release_bundle.py verify" in run
+    assert "cmp /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle-a.tar.gz" in run
     assert '--source-date-epoch "$SOURCE_DATE_EPOCH"' in run
     assert "SHA256SUMS" in run
     assert "provenance.json" in run
     assert "tar --create" not in run
+    assert "BUNDLE_SHA256" not in workflow_text

@@ -12,15 +12,17 @@ User=dolores-miner
 Group=dolores-miner
 EnvironmentFile=/etc/dolores/miner.env
 StateDirectory=dolores-miner
+StateDirectoryMode=0700
 WorkingDirectory=/var/lib/dolores-miner
 
 # Publication is an explicit operator action. This supervised restart path does
 # not call serve_axon; it preserves the endpoint already published and read back.
 ExecStart=/opt/dolores-miner/venv/bin/dolores-miner serve --task-dir ${DOLORES_TASK_DIR} --quota ${DOLORES_MINER_QUOTA} --host 0.0.0.0 --port ${DOLORES_MINER_PORT} --external-ip ${DOLORES_EXTERNAL_IP} --external-port ${DOLORES_MINER_PORT} --validator-hotkey ${DOLORES_VALIDATOR_HOTKEY} --wallet.name ${BT_WALLET_NAME} --wallet.hotkey ${BT_WALLET_HOTKEY} --network test --netuid 523
-ExecStartPost=/opt/dolores-miner/venv/bin/dolores-miner doctor --network test --netuid 523 --wallet.name ${BT_WALLET_NAME} --wallet.hotkey ${BT_WALLET_HOTKEY} --wallet.path ${BT_WALLET_PATH} --coldkey-ss58 ${COLDKEY_SS58} --hotkey-ss58 ${HOTKEY_SS58} --external-ip ${DOLORES_EXTERNAL_IP} --port ${DOLORES_MINER_PORT} --task-dir ${DOLORES_TASK_DIR} --timeout 10
+ExecStartPost=/opt/dolores-miner/venv/bin/dolores-miner doctor --network test --netuid 523 --wallet.name ${BT_WALLET_NAME} --wallet.hotkey ${BT_WALLET_HOTKEY} --wallet.path ${BT_WALLET_PATH} --coldkey-ss58 ${COLDKEY_SS58} --hotkey-ss58 ${HOTKEY_SS58} --external-ip ${DOLORES_EXTERNAL_IP} --port ${DOLORES_MINER_PORT} --task-dir ${DOLORES_TASK_DIR} --timeout 10 --attempts 3 --retry-delay 5
 
 Restart=on-failure
 RestartSec=5s
+TimeoutStartSec=3min
 KillSignal=SIGINT
 TimeoutStopSec=30s
 StandardOutput=journal

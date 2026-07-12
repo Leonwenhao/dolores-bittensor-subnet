@@ -33,6 +33,8 @@ from dolores_subnet.packaging import to_wire
 
 REGISTER_CONFIRMATION = "REGISTER-TESTNET-523"
 DOCTOR_TIMEOUT_MAX_SECONDS = 30.0
+DOCTOR_ATTEMPTS_MAX = 12
+DOCTOR_RETRY_DELAY_MAX_SECONDS = 30.0
 DOCTOR_SMOKE_SEED = 0
 EXPECTED_DISTRIBUTIONS = {
     "dolores-autocurricula": "0.2.0rc1",
@@ -285,6 +287,8 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--external-ip", required=True)
     doctor.add_argument("--port", type=int, required=True)
     doctor.add_argument("--timeout", type=float, default=5.0)
+    doctor.add_argument("--attempts", type=int, default=1)
+    doctor.add_argument("--retry-delay", type=float, default=0.0)
     doctor.set_defaults(handler=doctor_command)
 
     init = subparsers.add_parser("init", help="create a supported parser task template")
@@ -351,6 +355,26 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def doctor_command(args: argparse.Namespace) -> int:
+    attempts = _require_doctor_attempts(args.attempts)
+    retry_delay = _require_doctor_retry_delay(args.retry_delay)
+    payload: dict[str, Any] = {}
+    for attempt in range(1, attempts + 1):
+        checks = _doctor_checks(args)
+        ok = all(bool(item.get("ok")) for item in checks.values())
+        payload = {
+            "ok": ok,
+            "attempts": {"configured": attempts, "used": attempt},
+            "checks": checks,
+        }
+        if ok or attempt == attempts:
+            break
+        if retry_delay > 0:
+            time.sleep(retry_delay)
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return 0 if payload["ok"] else 1
+
+
+def _doctor_checks(args: argparse.Namespace) -> dict[str, dict[str, Any]]:
     checks: dict[str, dict[str, Any]] = {}
     checks["python"] = _python_check(sys.version_info)
     for distribution, expected in EXPECTED_DISTRIBUTIONS.items():
@@ -414,10 +438,20 @@ def doctor_command(args: argparse.Namespace) -> int:
             "state": local_state,
         }
         public_reachable = _tcp_reachable(external_ip, port, timeout)
-        checks["public_tcp"] = {"ok": public_reachable, "reachable": public_reachable}
+        checks["public_tcp"] = {
+            "ok": public_reachable,
+            "reachable": public_reachable,
+            "scope": "same_host_hairpin",
+            "external_reachability_proof": False,
+        }
     else:
         checks["local_port"] = {"ok": False, "reason": "invalid_public_endpoint"}
-        checks["public_tcp"] = {"ok": False, "reason": "invalid_public_endpoint"}
+        checks["public_tcp"] = {
+            "ok": False,
+            "reason": "invalid_public_endpoint",
+            "scope": "same_host_hairpin",
+            "external_reachability_proof": False,
+        }
 
     chain_prerequisites = target_ok and endpoint_ok and coldkey_valid and hotkey_valid
     if chain_prerequisites:
@@ -448,9 +482,7 @@ def doctor_command(args: argparse.Namespace) -> int:
         "fireworks_required": False,
         "streamlit_required": False,
     }
-    ok = all(bool(item.get("ok")) for item in checks.values())
-    print(json.dumps({"ok": ok, "checks": checks}, indent=2, sort_keys=True))
-    return 0 if ok else 1
+    return checks
 
 
 def _python_check(version_info: Any) -> dict[str, Any]:
@@ -496,6 +528,20 @@ def _require_doctor_timeout(value: float) -> float:
     if not 0 < timeout <= DOCTOR_TIMEOUT_MAX_SECONDS:
         raise ValueError("doctor timeout is outside the supported bound")
     return timeout
+
+
+def _require_doctor_attempts(value: int) -> int:
+    attempts = int(value)
+    if isinstance(value, bool) or not 1 <= attempts <= DOCTOR_ATTEMPTS_MAX:
+        raise ValueError("doctor attempts are outside the supported bound")
+    return attempts
+
+
+def _require_doctor_retry_delay(value: float) -> float:
+    retry_delay = float(value)
+    if isinstance(value, bool) or not 0 <= retry_delay <= DOCTOR_RETRY_DELAY_MAX_SECONDS:
+        raise ValueError("doctor retry delay is outside the supported bound")
+    return retry_delay
 
 
 def _public_ss58_is_valid(address: str) -> bool:

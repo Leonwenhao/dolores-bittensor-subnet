@@ -255,7 +255,13 @@ def test_doctor_full_success_is_read_only_structured_and_path_free(
         "owner_matches": True,
         "endpoint_matches": True,
     }
-    assert payload["checks"]["public_tcp"] == {"ok": True, "reachable": True}
+    assert payload["attempts"] == {"configured": 1, "used": 1}
+    assert payload["checks"]["public_tcp"] == {
+        "ok": True,
+        "reachable": True,
+        "scope": "same_host_hairpin",
+        "external_reachability_proof": False,
+    }
     assert payload["checks"]["local_port"] == {"ok": True, "state": "free"}
     assert payload["checks"]["wallet_metadata"]["inspection"] == "metadata_only"
     assert payload["checks"]["miner_boundary"] == {
@@ -430,7 +436,63 @@ def test_doctor_fails_when_public_tcp_is_unreachable(tmp_path, monkeypatch, caps
     assert json.loads(capsys.readouterr().out)["checks"]["public_tcp"] == {
         "ok": False,
         "reachable": False,
+        "scope": "same_host_hairpin",
+        "external_reachability_proof": False,
     }
+
+
+def test_doctor_retries_until_full_audit_succeeds(tmp_path, monkeypatch, capsys) -> None:
+    wallet_root = _wallet_tree(tmp_path)
+    calls = _patch_doctor_dependencies(monkeypatch)
+    reachability = iter([False, True])
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        miner_cli,
+        "_tcp_reachable",
+        lambda host, port, timeout: next(reachability),
+    )
+    monkeypatch.setattr(miner_cli.time, "sleep", sleeps.append)
+    argv = _doctor_argv(wallet_root) + ["--attempts", "3", "--retry-delay", "0.5"]
+
+    assert miner_cli.main(argv) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["attempts"] == {"configured": 3, "used": 2}
+    assert len(calls) == 2
+    assert sleeps == [0.5]
+
+
+def test_doctor_retry_exhaustion_emits_only_final_failure(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    wallet_root = _wallet_tree(tmp_path)
+    calls = _patch_doctor_dependencies(monkeypatch, public_tcp=False)
+    sleeps: list[float] = []
+    monkeypatch.setattr(miner_cli.time, "sleep", sleeps.append)
+    argv = _doctor_argv(wallet_root) + ["--attempts", "3", "--retry-delay", "0.25"]
+
+    assert miner_cli.main(argv) == 1
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    assert output.count('"checks"') == 1
+    assert payload["attempts"] == {"configured": 3, "used": 3}
+    assert len(calls) == 3
+    assert sleeps == [0.25, 0.25]
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--attempts", "0"),
+        ("--attempts", "13"),
+        ("--retry-delay", "-0.1"),
+        ("--retry-delay", "30.1"),
+    ],
+)
+def test_doctor_rejects_retry_bounds(tmp_path, capsys, flag, value) -> None:
+    wallet_root = _wallet_tree(tmp_path)
+
+    assert miner_cli.main(_doctor_argv(wallet_root) + [flag, value]) == 2
+    assert "outside the supported bound" in capsys.readouterr().err
 
 
 def test_doctor_chain_failure_is_fail_closed_and_does_not_leak_error(

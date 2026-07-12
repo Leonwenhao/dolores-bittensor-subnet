@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gzip
 import io
+import stat
 import tarfile
 from pathlib import Path
 
@@ -19,6 +20,8 @@ def _write_archive(
     metadata_offset: int = 0,
     unsafe_name: str | None = None,
     link: bool = False,
+    duplicate: bool = False,
+    second_root: bool = False,
 ) -> None:
     entries = [
         ("package-0.2.0rc1", None, 0o755),
@@ -27,6 +30,10 @@ def _write_archive(
     ]
     if unsafe_name is not None:
         entries.append((unsafe_name, b"unsafe\n", 0o644))
+    if duplicate:
+        entries.append(("package-0.2.0rc1/PKG-INFO", b"duplicate\n", 0o644))
+    if second_root:
+        entries.append(("other-package/PKG-INFO", b"Name: other-package\n", 0o644))
     if reverse:
         entries.reverse()
 
@@ -71,6 +78,7 @@ def test_normalization_is_byte_identical_across_input_metadata_and_order(tmp_pat
 
     assert first_digest == second_digest
     assert first.read_bytes() == second.read_bytes()
+    assert stat.S_IMODE(first.stat().st_mode) == 0o644
     normalized_bytes = first.read_bytes()
     assert normalize_sdist(first, epoch=EPOCH) == first_digest
     assert first.read_bytes() == normalized_bytes
@@ -106,7 +114,19 @@ def test_normalization_rejects_unsafe_paths(tmp_path: Path, unsafe_name: str) ->
         normalize_sdist(archive, epoch=EPOCH)
 
 
-def test_normalization_rejects_links_and_symlinked_input(tmp_path: Path) -> None:
+def test_normalization_rejects_duplicate_members_and_multiple_roots(tmp_path: Path) -> None:
+    duplicate = tmp_path / "duplicate.tar.gz"
+    _write_archive(duplicate, duplicate=True)
+    with pytest.raises(ValueError, match="duplicate members"):
+        normalize_sdist(duplicate, epoch=EPOCH)
+
+    multiple_roots = tmp_path / "multiple-roots.tar.gz"
+    _write_archive(multiple_roots, second_root=True)
+    with pytest.raises(ValueError, match="exactly one top-level root"):
+        normalize_sdist(multiple_roots, epoch=EPOCH)
+
+
+def test_normalization_rejects_links_and_nonregular_input(tmp_path: Path) -> None:
     archive = tmp_path / "linked-member.tar.gz"
     _write_archive(archive, link=True)
     with pytest.raises(ValueError, match="link or special member"):
@@ -119,10 +139,14 @@ def test_normalization_rejects_links_and_symlinked_input(tmp_path: Path) -> None
     with pytest.raises(ValueError, match="regular file, not a symlink"):
         normalize_sdist(alias, epoch=EPOCH)
 
+    with pytest.raises(ValueError, match="regular file, not a symlink"):
+        normalize_sdist(tmp_path, epoch=EPOCH)
 
-def test_normalization_rejects_non_release_epoch(tmp_path: Path) -> None:
+
+@pytest.mark.parametrize("epoch", [True, 315_532_799, 2**31])
+def test_normalization_rejects_non_release_epoch(tmp_path: Path, epoch: object) -> None:
     archive = tmp_path / "epoch.tar.gz"
     _write_archive(archive)
 
     with pytest.raises(ValueError, match="1980-01-01"):
-        normalize_sdist(archive, epoch=315_532_799)
+        normalize_sdist(archive, epoch=epoch)  # type: ignore[arg-type]

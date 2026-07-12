@@ -17,7 +17,9 @@ def test_miner_unit_is_non_root_supervised_and_never_republishes() -> None:
     assert "User=dolores-miner" in unit
     assert "Group=dolores-miner" in unit
     assert "EnvironmentFile=/etc/dolores/miner.env" in unit
+    assert "StateDirectoryMode=0700" in unit
     assert "Restart=on-failure" in unit
+    assert "TimeoutStartSec=3min" in unit
     assert "StandardOutput=journal" in unit
     assert "NoNewPrivileges=true" in unit
     assert "dolores-miner serve" in start
@@ -26,6 +28,7 @@ def test_miner_unit_is_non_root_supervised_and_never_republishes() -> None:
     assert "--allow-any-signed-validator" not in start
     assert "dolores-miner doctor" in post
     assert "--network test --netuid 523" in post
+    assert "--attempts 3 --retry-delay 5" in post
 
 
 def test_validator_unit_is_serialized_dry_run_with_explicit_health() -> None:
@@ -36,6 +39,12 @@ def test_validator_unit_is_serialized_dry_run_with_explicit_health() -> None:
     assert "Type=oneshot" in unit
     assert "User=dolores-validator" in unit
     assert "EnvironmentFile=/etc/dolores/validator.env" in unit
+    assert "StateDirectoryMode=0700" in unit
+    assert "RuntimeDirectory=dolores-validator" in unit
+    assert "RuntimeDirectoryMode=0700" in unit
+    assert "Environment=TMPDIR=/run/dolores-validator" in unit
+    assert "PrivateTmp=true" in unit
+    assert "ReadWritePaths=/var/lib/dolores-validator /run/dolores-validator" in unit
     assert "dolores-validator tick" in start
     assert "--network test --netuid 523" in start
     assert "--chain dry-run" in start
@@ -52,10 +61,10 @@ def test_validator_unit_is_serialized_dry_run_with_explicit_health() -> None:
     assert "--network test --netuid 523" in post
 
 
-def test_validator_timer_waits_after_completion_and_persists() -> None:
+def test_validator_timer_waits_after_completion_without_missed_run_catch_up() -> None:
     timer = _unit("dolores-validator.timer")
 
     assert "Unit=dolores-validator.service" in timer
     assert "OnUnitInactiveSec=" in timer
-    assert "Persistent=true" in timer
+    assert "Persistent=" not in timer
     assert "OnUnitActiveSec=" not in timer

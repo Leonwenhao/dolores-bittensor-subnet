@@ -13,6 +13,10 @@ Group=dolores-validator
 SupplementaryGroups=docker
 EnvironmentFile=/etc/dolores/validator.env
 StateDirectory=dolores-validator
+StateDirectoryMode=0700
+RuntimeDirectory=dolores-validator
+RuntimeDirectoryMode=0700
+Environment=TMPDIR=/run/dolores-validator
 WorkingDirectory=/var/lib/dolores-validator
 
 ExecStart=/opt/dolores-validator/venv/bin/dolores-validator tick --mode testnet --work /var/lib/dolores-validator --quota ${DOLORES_VALIDATOR_QUOTA} --timeout ${DOLORES_VALIDATOR_TIMEOUT} --wallet.name ${BT_WALLET_NAME} --wallet.hotkey ${BT_WALLET_HOTKEY} --network test --netuid 523 --chain dry-run --panel-mode mock
@@ -40,7 +44,7 @@ LockPersonality=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 CapabilityBoundingSet=
 AmbientCapabilities=
-ReadWritePaths=/var/lib/dolores-validator
+ReadWritePaths=/var/lib/dolores-validator /run/dolores-validator
 
 [Install]
 WantedBy=multi-user.target

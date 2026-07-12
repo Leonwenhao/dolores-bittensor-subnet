@@ -1,6 +1,6 @@
 # Dolores Bittensor Subnet 0.2.0rc1 local release manifest
 
-- Review timestamp: `2026-07-12T19:34:46Z`
+- Review timestamp: `2026-07-12T19:37:07Z`
 - Intended tag: `v0.2.0-rc.1`
 - Current canonical subnet artifact source commit:
   `30475e724a1e04ed34c8640a02be655b41794d35`
@@ -83,8 +83,8 @@ during these gates.
 | Gate | Status | Reason |
 |---|---|---|
 | Private vulnerability reporting channel | `PASS` | Approved enablement followed by GitHub API read-back `{"enabled":true}` at `2026-07-12T19:32:08Z` |
-| Public-safe reporter notification | `PASS` | Exact approved notice posted by `Leonwenhao` as issue comment `4952486451` at `2026-07-12T19:34:46Z`; live read-back matched and no duplicate was posted |
-| Private report receipt | `PENDING-HUMAN` | Issue #4 remains open after the intake notice; no private advisory identifier has been received |
+| Public-safe reporter notification | `PASS` | Exact approved notice posted by `Leonwenhao` as issue comment `4952486451` at `2026-07-12T19:34:46Z`; issue closed after the notice at `2026-07-12T19:37:07Z` |
+| Private report receipt | `PENDING-HUMAN` | Private-advisory list remains empty; no advisory identifier has been received |
 | Private report triage | `PENDING-HUMAN` | Requires the private report, affected-RC assessment, owner, disposition, and any regression evidence |
 | Public engine and subnet artifacts | `PENDING-HUMAN` | Engine has no remote and both repositories have unpublished local commits; remote creation, push, release, and tag require approval |
 | Hosted CI checks | `PENDING-HUMAN` | The workflow consumes the future public engine asset and cannot pass remotely until that exact asset exists |

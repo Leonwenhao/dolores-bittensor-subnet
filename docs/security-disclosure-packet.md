@@ -14,6 +14,8 @@ human-gated reply and private triage without exposing vulnerability details.
   private-vulnerability-reporting setting.
 - The separately approved public-safe notice was posted by `Leonwenhao` at
   `2026-07-12T19:34:46Z` as issue comment `4952486451`.
+- Issue #4 was closed after the notice; live read-back at
+  `2026-07-12T19:37:07Z` showed one comment and no private advisory yet.
 - Issue #4 intentionally contains no vulnerability details, and none are
   reproduced here.
 
@@ -78,7 +80,7 @@ Exact posted notice:
 > acknowledge and triage it there.
 
 Live read-back matched this notice exactly. No duplicate comment was posted by
-the release agent.
+the release agent, and the issue is now closed.
 
 ## Private triage record
 

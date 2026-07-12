@@ -58,7 +58,9 @@ def test_security_docs_record_enabled_channel_without_overclaiming_triage() -> N
     assert "## Completed public-safe notification" in packet
     assert "issue comment `4952486451`" in packet
     assert "No duplicate comment was posted" in packet
+    assert "the issue is now closed" in packet
     assert "| Private vulnerability reporting channel | `PASS` |" in manifest
     assert "| Public-safe reporter notification | `PASS` |" in manifest
     assert "| Private report receipt | `PENDING-HUMAN` |" in manifest
+    assert "Private-advisory list remains empty" in manifest
     assert "| Private report triage | `PENDING-HUMAN` |" in manifest

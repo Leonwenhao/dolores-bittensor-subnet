@@ -1,110 +1,135 @@
-# Dolores Bittensor Subnet 0.2.0rc1 local release manifest
+# Dolores Bittensor Subnet 0.2.0rc1 source release record
 
-- Review timestamp: `2026-07-12T19:37:07Z`
+- Release candidate: `0.2.0rc1`
 - Intended tag: `v0.2.0-rc.1`
-- Current canonical subnet artifact source commit:
-  `30475e724a1e04ed34c8640a02be655b41794d35`
-- Intended tag target: pending private report receipt, triage, and any required
-  rebuild; no tag is currently authorized.
-- Engine public artifact source commit:
-  `814d9bcc451a36db1b341c2ddd6f27d1aaed565b`
-- Fixed build epoch: `SOURCE_DATE_EPOCH=1783869698`
-- Canonical local artifacts:
-  `work/releases/0.2.0rc1-final/`
+- Engine repository: `https://github.com/Leonwenhao/dolores-autocurricula`
+- Subnet repository: `https://github.com/Leonwenhao/dolores-bittensor-subnet`
+- Engine release: `https://github.com/Leonwenhao/dolores-autocurricula/releases/tag/v0.2.0-rc.1`
+- Subnet release: `https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/tag/v0.2.0-rc.1`
 
-This manifest is intentionally outside the subnet source distribution. It can
-record the exact source commit and artifact digests without making the packaged
-checklist self-referential. The canonical artifacts remain a pre-triage local
-candidate. If private triage changes source or public evidence, rebuild and
-rehash them before selecting a tag target.
+This tracked document defines the release contract without pretending that a
+pre-freeze local build is the public release. The final source SHAs, artifact
+sizes, SHA-256 values, hosted-CI URLs, public-download receipts, and
+platform-scoped verifier image identity belong in the immutable external asset
+`dolores-bittensor-subnet-0.2.0rc1-release-manifest.md`. The tracked checklist
+and quickstart point to that asset and the checksum sidecars.
 
-## Immutable artifact digests
+The older local subnet artifacts built from `30475e7` are superseded candidates:
+their packaged security/checklist prose predates the current source. They must
+not be tagged, uploaded, or described as final.
 
-| Distribution | Artifact | SHA-256 |
+## Immutable publication contract
+
+Every URL below is deterministic and versioned. A missing URL, mutable branch
+archive, local wheel, private attachment, or digest mismatch is a hard stop.
+
+### Engine assets
+
+Base URL:
+`https://github.com/Leonwenhao/dolores-autocurricula/releases/download/v0.2.0-rc.1/`
+
+| Role | Immutable asset name |
+|---|---|
+| Engine wheel | `dolores_autocurricula-0.2.0rc1-py3-none-any.whl` |
+| Engine source distribution | `dolores_autocurricula-0.2.0rc1.tar.gz` |
+| External release manifest | `dolores-autocurricula-0.2.0rc1-release-manifest.md` |
+| Checksum sidecar | `dolores-autocurricula-0.2.0rc1-SHA256SUMS` |
+
+### Subnet assets
+
+Base URL:
+`https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/v0.2.0-rc.1/`
+
+| Role | Immutable asset name |
+|---|---|
+| Subnet wheel | `dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl` |
+| Normalized subnet source distribution | `dolores_bittensor_subnet-0.2.0rc1.tar.gz` |
+| Deterministic release bundle | `dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz` |
+| External release manifest | `dolores-bittensor-subnet-0.2.0rc1-release-manifest.md` |
+| Checksum sidecar | `dolores-bittensor-subnet-0.2.0rc1-SHA256SUMS` |
+| External provenance | `dolores-bittensor-subnet-0.2.0rc1-provenance.json` |
+| Exact external checklist | `dolores-bittensor-subnet-0.2.0rc1-cohort-checklist.md` |
+| Participant handoff | `hackerquest-handoff-0.2.0rc1.md` |
+
+The external assets are generated in a non-circular order after one final subnet
+source commit is frozen and two independent builds match byte-for-byte:
+payload/checksum/provenance material, exact checklist, external manifest, then
+the participant handoff. The checksum sidecars cover primary payloads without
+self-listing. The final handoff records the sidecar, manifest, provenance, and
+checklist digests but never its own digest; GitHub's immutable release-asset
+digest anchors the downloaded handoff itself.
+
+## Runtime and dependency contract
+
+- Participant OS: Ubuntu `24.04 LTS`, `amd64`.
+- Participant Python: CPython `3.11.15`.
+- Package Python constraint: CPython `>=3.11,<3.12`.
+- `bittensor==10.5.0`
+- `bittensor-cli==9.23.1`
+- `async-substrate-interface==2.2.1`
+- `websockets==16.0`
+- `dolores-autocurricula==0.2.0rc1`
+- Network and subnet: `network=test`, `netuid=523`.
+
+The miner base install does not include Docker, DuckDB, PyArrow, Streamlit,
+Fireworks credentials, a solver panel, or validator-only dependencies. Docker
+verification and the secret-keyed validator holdout run only on the validator.
+
+Verifier image identity is platform-scoped. The external manifest must record
+the packaged Dockerfile SHA-256, base-image digest, host architecture, and the
+image ID observed on each rehearsed architecture. An ARM64 image ID must not be
+presented as the expected AMD64 VPS identity.
+
+## Evidence required in the external manifest
+
+The immutable external manifest must record all of the following from the final
+source commits rather than copying pre-freeze receipts:
+
+1. exact engine and subnet source SHAs and tag targets;
+2. exact artifact names, sizes, and SHA-256 values;
+3. two-build byte identity for both wheels and normalized source distributions;
+4. release-bundle membership, nested checksums, provenance, and golden task
+   digest;
+5. final engine and subnet Ruff/test results;
+6. clean miner, clean validator, extracted-sdist, Docker holdout, signed HTTP,
+   replay/tamper, recurring restart, and real-systemd receipts;
+7. hosted GitHub Actions URLs for the exact tagged source SHAs;
+8. public HTTPS re-download and checksum verification receipts;
+9. Ubuntu 24.04 AMD64 VPS rehearsal identity, service lifecycle, teardown, and
+   continuing-cost state;
+10. every remaining human or external gate without converting it to `PASS`.
+
+## Security truth and publication decision
+
+| Gate | Status | Evidence or consequence |
 |---|---|---|
-| Engine | `dolores_autocurricula-0.2.0rc1-py3-none-any.whl` | `a6cc2ce41c867e221e2ecbe44a9168d8235a609c81a487b18d055946c3d35078` |
-| Engine | `dolores_autocurricula-0.2.0rc1.tar.gz` | `9d1c48174ed19600774b0c85cc8f34f9e9fa6035f28334172e3a5b491d99e12a` |
-| Subnet | `dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl` | `3da6ce1d8ecdad28b0cf17a99e3d8fac0fccdf2b046485b0d360283823492541` |
-| Subnet | `dolores_bittensor_subnet-0.2.0rc1.tar.gz` | `600570d150f870033d806665f16b73df8c3092b5949a9881e857bed5621af14a` |
-| Cohort bundle | `dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz` | `8c2c1b427ee4a07be932835d9488cdf5416110e5eec860eb34b0e83ec5f173f9` |
+| Private vulnerability reporting channel | `PASS` | Enabled and read back as `{"enabled":true}` at `2026-07-12T19:32:08Z`. |
+| Public-safe reporter notification | `PASS` | Issue comment `4952486451` posted at `2026-07-12T19:34:46Z`; issue #4 then closed. |
+| Private report receipt | `PENDING-HUMAN` | No private advisory identifier has been received or claimed. |
+| Private report triage | `PENDING-HUMAN` | No finding, affected-RC decision, owner, or disposition has been received or claimed. |
+| Accepted-risk publication decision | `PENDING-HUMAN` | Publishing while the two rows above remain pending requires one explicit `STOP-LEON` decision naming the unknown risk, exact release objects, and rollback/deprecation path. |
 
-The bundle's published SHA-256 is the authenticity trust anchor. Verify that
-external digest before extraction. Its embedded `SHA256SUMS` and
-`provenance.json` then provide corruption detection and exact nested provenance;
-they do not independently authenticate an untrusted download.
+An accepted-risk publication decision does not change either pending security
+row to `PASS`, does not imply that no finding exists, and does not make the
+release `cohort-ready`. Participant contact, registration, axon publication,
+live weights, and amplification remain separate approvals.
 
-The subnet wheel metadata pins `bittensor==10.5.0`,
-`bittensor-cli==9.23.1`, `async-substrate-interface==2.2.1`,
-`websockets==16.0`, and `dolores-autocurricula==0.2.0rc1`. The supported cohort
-runtime is CPython `>=3.11,<3.12`.
+## Current release gates
 
-## Verifier image
+| Gate | Status |
+|---|---|
+| Final engine source, hosted CI, tag, release, and public asset verification | `PENDING-HUMAN` |
+| Final subnet source, reproducible rebuild, hosted CI, tag, release, and public asset verification | `PENDING-HUMAN` |
+| Accepted-risk publication decision while security receipt/triage remain pending | `PENDING-HUMAN` |
+| Clean Ubuntu 24.04 AMD64 VPS rehearsal from public assets | `PENDING-HUMAN` |
+| External HackerQuest miner, public axon, and supervised restart | `PENDING-HUMAN` |
+| Two consecutive nonzero external-miner epochs | `PENDING-HUMAN` and outside handoff-release completion |
 
-- Default tag: `dolores-verifier-pytest:0.2.0rc1`
-- Reproducible image ID:
-  `sha256:ac7a99b6f218563c6ea2f701e0ae4727854d998220fa6bfa5a90b78af4dec4e5`
-- Packaged Dockerfile SHA-256:
-  `219605da24bf86862b20802f07315ab5869ca402e0810e5c12e4e8aeb1e017a0`
-- Base image:
-  `python:3.11-slim@sha256:e031123e3d85762b141ad1cbc56452ba69c6e722ebf2f042cc0dc86c47c0d8b3`
+The selected mechanism is a same-version RC1 rebuild because no public RC1 tag
+or release exists. If an immutable RC1 collision appears or a defect is found
+after publication, do not replace assets: deprecate RC1, bump both dependent
+surfaces consistently, and rebuild the complete release chain.
 
-Two different tags built from the installed public engine wheel produced the
-same image ID. A fresh validator installation then accepted the honest fixture
-with this exact image and `executed=true`, `containerized=true`.
-
-## Local verification receipts
-
-| Gate | Result | Evidence |
-|---|---|---|
-| Engine history-clean boundary | PASS | Seven-commit orphan public history rooted at `6ddf86f15998768aaa55e07dabe007dc52a80897`; noreply author metadata; no reachable internal diary, Fable, local-path, credential, or internal-main ancestry |
-| Engine lint and full suite | PASS | Public checkout: `ruff check --no-cache .`; `203 passed in 160.97s`; extracted canonical sdist fresh venv: `203 passed in 156.97s`; `pip check` clean |
-| Subnet lint and full suite | PASS | New engine wheel installed normally from hash `a6cc2ce…`; `ruff check --no-cache .`; `285 passed, 43 SDK deprecation warnings in 38.54s` |
-| Reproducible subnet build | PASS | Two independent `git archive` extracts of `30475e7…` built with CPython 3.11.15, `build==1.5.1`, `setuptools==83.0.0`, `wheel==0.47.0`, and fixed epoch; wheel and normalized sdist were byte-identical |
-| Deterministic release bundle | PASS | Two builds were byte-identical; seven canonical members; exact nested artifact names and metadata; semantic `task.yaml`/`wire.json` equality; canonical outer encoding; embedded provenance and six checksum lines all verified |
-| Engine base install | PASS | Installed canonical wheel outside the checkout; `pip check`; packaged Dockerfile resolved; DuckDB, Streamlit, PyArrow, Hypothesis, and pytest absent |
-| Miner artifact boundary | PASS | Fresh macOS venv and fresh pinned Linux ARM64 container installed the two canonical wheels; `pip check`; installed `dolores-miner` init/validate; `btcli 9.23.1`; validator-only dependencies absent; golden digest reproduced |
-| Validator artifact boundary | PASS | Fresh macOS venv and fresh pinned Linux ARM64 container installed validator extras; `pip check`; installed CLI and panel asset resolved; exact Bittensor/transport pins and golden digest reproduced |
-| Validator Docker execution | PASS | Fresh installed validator accepted the honest fixture with the exact verifier image above, `executed=true`, and `containerized=true` |
-| Extracted sdist | PASS | Fresh venv built and installed the normalized final sdist with its exact pinned build backend, imported from site-packages, passed `pip check`, and validated the honest fixture outside the checkout |
-| Golden identity | PASS | Engine base, installed miner, installed validator, subnet wire conversion, extracted sdist, and bundle fixture returned `fbf1ca8f3b9cad51370332bb1329d03b16306d4828bed9674e1a3d2a2f80a249` |
-| Ubuntu supervisor syntax | PASS | Ubuntu 24.04, systemd `255.4-1ubuntu8.16`; `systemd-analyze verify` on all three units from the extracted final sdist exited zero with expected executable placeholders |
-| Artifact content and metadata | PASS | Wheel RECORD verified; sdist ownership, modes, ordering, and mtimes normalized; no work DB, generated output, internal notes, credential file, private key, local user path, active holdout material, or stale release manifest packaged |
-| Signed transport and holdout | PASS | Full suite covers installed-SDK verification, real HTTP invalid signature/stale nonce/replay rejection before forwarding, signed response binding, caps, real Docker author-tests-before-private-holdout ordering, wrong probes, and semantic holdout bypass rejection |
-| Axon publication behavior | PASS | Fake-chain receipts prove exact `network=test`, `netuid=523`, successful `serve_axon`, retry/read-back, and fail-closed mismatch; a separate serve-path test proves exact `bt.Axon` external-IP/port construction |
-| Recurring process restart | PASS | Hard child-process exit after one fsynced evaluation row followed by a fresh process completed epoch 2; epoch 1 remained single, failed, and was not resubmitted |
-
-No provider call, provider spend, wallet file read, chain write, registration,
-axon publication, live weight submission, public push, release, tag, repository
-setting change, issue reply, participant message, or existing-process stop occurred
-during these gates.
-
-## Current external and human gates
-
-| Gate | Status | Reason |
-|---|---|---|
-| Private vulnerability reporting channel | `PASS` | Approved enablement followed by GitHub API read-back `{"enabled":true}` at `2026-07-12T19:32:08Z` |
-| Public-safe reporter notification | `PASS` | Exact approved notice posted by `Leonwenhao` as issue comment `4952486451` at `2026-07-12T19:34:46Z`; issue closed after the notice at `2026-07-12T19:37:07Z` |
-| Private report receipt | `PENDING-HUMAN` | Private-advisory list remains empty; no advisory identifier has been received |
-| Private report triage | `PENDING-HUMAN` | Requires the private report, affected-RC assessment, owner, disposition, and any regression evidence |
-| Public engine and subnet artifacts | `PENDING-HUMAN` | Engine has no remote and both repositories have unpublished local commits; remote creation, push, release, and tag require approval |
-| Hosted CI checks | `PENDING-HUMAN` | The workflow consumes the future public engine asset and cannot pass remotely until that exact asset exists |
-| External HackerQuest miner | `PENDING-HUMAN` | No non-first-party participant has installed or served this RC |
-| Public reachable axon and supervised restart | `PENDING-HUMAN` | Read-only block `7544717` still showed uid 1/2 inactive at `192.168.1.94:8091/8092`, with zero incentive/dividends; existing processes were not stopped or replaced |
-| Authoritative health receipt | `PENDING-HUMAN` | Requires timestamped supervisor status, complete redacted miner doctor, metagraph discovery, and default signed `dolores-validator health` reachability after a controlled restart |
-| Two consecutive nonzero external weights | `PENDING-HUMAN` | Requires a separate participant, publication approval, and separate per-epoch live-weight approvals |
-
-The same read-only testnet snapshot at `2026-07-12T17:46:50Z` showed validator
-uid 0 inactive with no axon, `last_update=7521406`, and raw
-`Weights[523,0]=[[1,65535]]`; commit-reveal remained disabled. These public
-facts preserve the historical weight receipt but do not satisfy current service
-health or external-cohort proof.
-
-## Release decision
-
-The source and canonical local artifacts are **conditionally ready for operator
-review**. They are **not authorized for publication or participant onboarding**
-and are not public-launch ready. Private report receipt/triage, public artifact
-publication, successful hosted CI, RC redeployment, authoritative external
-health, and two consecutive nonzero external-miner epochs remain explicit gates.
-Controlled-cohort readiness does not imply permissionless, production, mainnet,
-or training-value readiness.
+Nothing in this tracked record authorizes repository creation, push, tag,
+release publication, VPS provisioning, participant contact, wallet action, axon
+publication, or live weights.

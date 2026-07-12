@@ -60,5 +60,7 @@ budget-capped run supplies every spend gate.
 ## Security reports
 
 Do not post exploit details in a public issue. Follow [`SECURITY.md`](SECURITY.md).
-The controlled cohort remains blocked until the pending private report is
-received and triaged against the release candidate.
+Private reporting is enabled, while report receipt and triage remain
+`PENDING-HUMAN`. Publishing handoff artifacts before those rows pass requires a
+separate `STOP-LEON` accepted-risk decision; it never makes the security gate or
+controlled cohort ready.

@@ -24,23 +24,32 @@ was actually implemented and run; do not substitute proposed CLI syntax.
 
 | Field | Value |
 |---|---|
-| Review timestamp (UTC) | `2026-07-12T16:25:12Z` |
-| Engine immutable source revision | `814d9bcc451a36db1b341c2ddd6f27d1aaed565b` |
-| Engine wheel filename and SHA-256 | `dolores_autocurricula-0.2.0rc1-py3-none-any.whl`; `a6cc2ce41c867e221e2ecbe44a9168d8235a609c81a487b18d055946c3d35078` |
-| Subnet artifact source revision | Recorded in the external `release-manifest-0.2.0rc1.md` after the final artifact build; public tag creation remains `STOP-LEON`. |
-| Subnet wheel filename and SHA-256 | `dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl`; exact SHA-256 recorded in the external release manifest after the final artifact build. |
-| Verifier Dockerfile SHA-256 | `219605da24bf86862b20802f07315ab5869ca402e0810e5c12e4e8aeb1e017a0` |
-| Verifier image tag and image ID | `dolores-verifier-pytest:0.2.0rc1`; `sha256:ac7a99b6f218563c6ea2f701e0ae4727854d998220fa6bfa5a90b78af4dec4e5` |
-| Local gate result | `PASS` — see the unpackaged local `release-manifest-0.2.0rc1.md`; it is intended to be published beside the artifacts only after `STOP-LEON` approval. |
+| Review timestamp (UTC) | Finalized in the immutable external checklist after the reproducible build. |
+| Engine immutable source revision | Recorded in `dolores-bittensor-subnet-0.2.0rc1-release-manifest.md`. |
+| Engine wheel filename and SHA-256 | `dolores_autocurricula-0.2.0rc1-py3-none-any.whl`; exact SHA-256 in `dolores-autocurricula-0.2.0rc1-SHA256SUMS` and the external manifest. |
+| Subnet artifact source revision | Recorded in `dolores-bittensor-subnet-0.2.0rc1-release-manifest.md` after the final artifact build; tag creation remains `STOP-LEON`. |
+| Subnet wheel filename and SHA-256 | `dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl`; exact SHA-256 in `dolores-bittensor-subnet-0.2.0rc1-SHA256SUMS` and the external manifest. |
+| Verifier Dockerfile and image identity | Platform-scoped digests recorded in the external release manifest; an ARM64 image ID is not an AMD64 VPS identity. |
+| Local gate result | Re-run and finalized in the immutable external checklist `dolores-bittensor-subnet-0.2.0rc1-cohort-checklist.md`. |
 | Security disclosure gate | `PENDING-HUMAN` |
+| Accepted-risk publication decision | `PENDING-HUMAN` while private report receipt and triage remain pending. |
 | Public artifact gate | `PENDING-HUMAN` |
 | External cohort proof | `PENDING-HUMAN` |
-| Final outcome | `conditionally ready` |
+| Final outcome | `pre-publication source checklist`; never `cohort-ready` without external proof. |
 
 The packaged checklist intentionally does not embed its own subnet source
-commit or wheel digest. Those values are recorded in the external release
-manifest after the immutable artifacts are built, avoiding a self-referential
-artifact hash while preserving exact provenance.
+commit or final artifact digests. Those values are recorded after the immutable
+artifacts are built in these release assets:
+
+- `dolores-bittensor-subnet-0.2.0rc1-release-manifest.md`;
+- `dolores-bittensor-subnet-0.2.0rc1-SHA256SUMS`;
+- `dolores-bittensor-subnet-0.2.0rc1-provenance.json`;
+- `dolores-bittensor-subnet-0.2.0rc1-cohort-checklist.md`;
+- `hackerquest-handoff-0.2.0rc1.md`.
+
+This avoids a self-referential source-distribution hash while preserving exact
+external provenance. The deterministic release base is
+`https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/v0.2.0-rc.1/`.
 
 ## 0. Invariants
 
@@ -153,11 +162,14 @@ These are local/configuration gates until publication is explicitly approved.
 | PASS | A private reporting channel exists. | Approved enablement followed by GitHub API read-back `{"enabled":true}` at `2026-07-12T19:32:08Z`. |
 | PENDING-HUMAN | The pending report referenced by public issue #4 has been received privately. | Private advisory identifier only; no finding details in this checklist. |
 | PENDING-HUMAN | Findings have been triaged against the release candidate. | Private triage record with owner and disposition. |
-| PENDING-HUMAN | Required fixes and regression tests pass before public cohort publication. | Private advisory cross-reference plus public-safe test evidence. |
+| PENDING-HUMAN | Publishing handoff artifacts while receipt and triage remain pending has an explicit accepted-risk decision. | One `STOP-LEON` receipt naming exact release objects, unknown risk, and rollback/deprecation path. |
+| PENDING-HUMAN | If a report arrives before publication, any affected-RC disposition and required regression evidence are complete. | Private advisory cross-reference plus public-safe test evidence; `N/A` only if no report has arrived at the decision time. |
 
 Until the remaining rows pass, use `PENDING-HUMAN`. Follow
 [`security-disclosure-packet.md`](security-disclosure-packet.md); never paste
-the findings into public issues, commits, logs, or this checklist.
+the findings into public issues, commits, logs, or this checklist. An accepted
+publication risk does not turn receipt or triage into `PASS` and never establishes
+cohort readiness.
 
 ## 7. STOP-LEON publication and chain gates
 
@@ -171,7 +183,10 @@ repository, publishing release artifacts, or creating tag `v0.2.0-rc.1`.
 Evidence required before approval:
 
 - every local gate above passes;
-- exact commits, artifact filenames, and SHA-256 values are listed;
+- exact commits, artifact filenames, SHA-256 values, public URLs, and hosted-CI
+  URLs are listed in the immutable external manifest/checklist;
+- the operator explicitly accepts or rejects publication while private report
+  receipt and triage remain `PENDING-HUMAN`;
 - rollback identifies how to withdraw/deprecate the release and return cohort
   instructions to the prior known-good revision.
 
@@ -217,6 +232,10 @@ or manually injected endpoint. Use
 
 ## 9. Final decision
 
+- `handoff-release-ready`: immutable public assets, final hosted CI, public
+  download verification, exact participant packet, and clean Ubuntu rehearsal
+  pass. Pending private report receipt/triage must remain visible and requires an
+  explicit accepted-risk publication decision.
 - `cohort-ready`: every local, security, publication, and external proof gate is
   `PASS`, including two consecutive successful external epochs.
 - `conditionally ready`: all authorized local gates pass, while one or more

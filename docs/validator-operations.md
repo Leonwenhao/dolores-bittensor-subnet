@@ -10,39 +10,69 @@ The default mock panel makes no paid provider calls.
 
 ## 1. Install and isolate the service
 
-Use a dedicated Ubuntu host and non-root `dolores-validator` account. Membership
-in the host's Docker group permits control of the Docker daemon and is
-security-sensitive; do not give this account interactive or unrelated workload
-access.
+Use a dedicated Ubuntu 24.04 LTS amd64 host and non-root `dolores-validator`
+account. Install CPython 3.11.15 from the exact source URL and SHA-256 in
+[`hackerquest-miner-quickstart.md`](hackerquest-miner-quickstart.md), producing
+`/opt/python/3.11.15/bin/python3.11`; do not replace Ubuntu's system Python.
+Ubuntu `docker.io` is installed only on this validator host. Membership in the
+Docker group permits control of the daemon and is security-sensitive; do not
+give this account interactive or unrelated workload access.
 
-After verifying the approved public artifact hashes, install the engine and
-subnet validator artifacts in a root-owned virtual environment:
+Download and verify the immutable engine/subnet `v0.2.0-rc.1` assets exactly as
+specified in quickstart section 2. The fixed download directory and filenames
+are:
 
 ```bash
-sudo useradd --system --create-home --home-dir /home/dolores-validator \
-  --shell /usr/sbin/nologin dolores-validator
+export DOWNLOAD_DIR="/var/tmp/dolores-0.2.0rc1"
+export ENGINE_WHEEL="dolores_autocurricula-0.2.0rc1-py3-none-any.whl"
+export SUBNET_WHEEL="dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl"
+export SUBNET_SDIST="dolores_bittensor_subnet-0.2.0rc1.tar.gz"
+```
+
+Do not continue unless the release-page handoff digest, both checksum sidecars,
+and all downloaded payloads pass. Then install Docker and the validator extras
+in a root-owned virtual environment:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y docker.io
+sudo systemctl enable --now docker.service
+sudo docker version
+getent passwd dolores-validator >/dev/null || \
+  sudo useradd --system --create-home --home-dir /home/dolores-validator \
+    --shell /usr/sbin/nologin dolores-validator
 sudo usermod -aG docker dolores-validator
 sudo install -d -m 0755 -o root -g root /opt/dolores-validator
-python3.11 --version
-sudo python3.11 -m venv /opt/dolores-validator/venv
+/opt/python/3.11.15/bin/python3.11 --version
+sudo /opt/python/3.11.15/bin/python3.11 -m venv /opt/dolores-validator/venv
 sudo /opt/dolores-validator/venv/bin/python -m pip install --upgrade pip
 sudo /opt/dolores-validator/venv/bin/python -m pip install \
-  'dolores-autocurricula[validator] @ file:///absolute/path/to/dolores_autocurricula-0.2.0rc1-py3-none-any.whl' \
-  /absolute/path/to/dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl
+  'dolores-autocurricula[validator] @ file:///var/tmp/dolores-0.2.0rc1/dolores_autocurricula-0.2.0rc1-py3-none-any.whl' \
+  'dolores-bittensor-subnet[validator] @ file:///var/tmp/dolores-0.2.0rc1/dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl'
 sudo /opt/dolores-validator/venv/bin/python -m pip check
 ```
 
-Use the actual downloaded release paths. Do not use `DOLORES_REPO`, editable
-installs, adjacent checkouts, or unpinned branches.
+Do not use `DOLORES_REPO`, editable installs, adjacent checkouts, unpinned
+branches, or another artifact directory.
 
 Provision the validator wallet under `/home/dolores-validator/.bittensor/wallets`
 by running the approved Bittensor wallet command directly as that account in the
 operator's terminal. Do not copy, print, or automate private wallet material.
 
-Verify and extract the matching public subnet source distribution,
-`dolores_bittensor_subnet-0.2.0rc1.tar.gz`, and set `RELEASE_SOURCE` to its
-top-level directory. The reviewed systemd units below come from that immutable
-archive, not an unpinned checkout.
+Extract the already verified subnet source distribution and set the fixed
+release source:
+
+```bash
+cd "$DOWNLOAD_DIR"
+test ! -e dolores_bittensor_subnet-0.2.0rc1
+tar --extract --gzip --file "$SUBNET_SDIST"
+export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc1"
+test -f "$RELEASE_SOURCE/deploy/systemd/dolores-validator.service"
+test -f "$RELEASE_SOURCE/deploy/systemd/dolores-validator.timer"
+```
+
+The reviewed units below come from that immutable archive, not an unpinned
+checkout.
 
 Build or pull the verifier image only through the approved release procedure,
 then verify its immutable digest. `dolores-validator health` fails if Docker or

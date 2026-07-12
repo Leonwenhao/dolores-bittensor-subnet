@@ -13,7 +13,7 @@ Bittensor public testnet, netuid `523`. It is not a permissionless launch guide.
   adjacent repository, a shared filesystem, or a private wheel.
 - Do not publish a loopback, LAN/RFC1918, link-local, reserved, or dynamic
   endpoint. Public cohort serving requires a stable globally routable IPv4
-  address and fixed port on an Ubuntu VPS or equivalent host.
+  address and fixed port on the supported Ubuntu 24.04 LTS amd64 VPS.
 - Do not pass a miner endpoint to the public-testnet validator. It discovers
   published axons from the netuid-523 metagraph.
 - Registration, axon publication, and live weights are signed actions. Stop at
@@ -26,11 +26,13 @@ The release candidate is `0.2.0rc1` for both
 `dolores-bittensor-subnet` and `dolores-autocurricula`. The subnet pins the exact
 engine version.
 
-As of 2026-07-12, immutable public engine/subnet release assets are pending.
-Do not improvise an install from a local path. Wait for the exact public URLs
-and SHA-256 hashes in
-[`docs/hackerquest-miner-quickstart.md`](docs/hackerquest-miner-quickstart.md),
-then install those artifacts in a fresh Python 3.11 virtual environment.
+Do not improvise an install from a local path. Use only the immutable
+`v0.2.0-rc.1` GitHub Releases and the exact asset/checksum names in
+[`docs/hackerquest-miner-quickstart.md`](docs/hackerquest-miner-quickstart.md).
+If either release, its checksum sidecar, or the exact-hash handoff asset is
+missing, stop; preparation is not authorized from a branch archive or local
+wheel. Install only after the final published hashes verify in a fresh CPython
+3.11.15 virtual environment.
 
 After installation, these commands must resolve from the environment:
 

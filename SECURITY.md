@@ -6,12 +6,14 @@ explicitly configured to do so. Security reports are taken seriously.
 ## Reporting
 
 Do not disclose vulnerability details in a public issue. GitHub private
-vulnerability reporting is the required channel for this release, but it is
-currently disabled and therefore blocks public cohort launch. A reporter should
-use an already-established private contact only to ask the maintainer to enable
-the repository channel; the maintainer must then receive and triage the report
-privately before launch. See `docs/security-disclosure-packet.md` for the exact
-operator gate.
+vulnerability reporting is enabled and is the required channel for this release.
+The public intake-enablement issue is closed, but no private report has been
+received or triaged as of the recorded release review. Those rows remain
+`PENDING-HUMAN`; absence of a received report is not evidence that no finding
+exists. Publishing handoff artifacts while the risk remains pending requires a
+separate `STOP-LEON` accepted-risk decision. That decision does not mark the
+security gate or external-cohort proof `PASS`. See
+`docs/security-disclosure-packet.md` for the exact operator gate.
 
 Highest-interest areas:
 

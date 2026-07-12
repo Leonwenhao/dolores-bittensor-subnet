@@ -19,9 +19,9 @@ human-gated reply and private triage without exposing vulnerability details.
 - Issue #4 intentionally contains no vulnerability details, and none are
   reproduced here.
 
-The private-channel gate is now `PASS`. The overall controlled-cohort security
-gate remains `PENDING-HUMAN` until the report is received and its
-release-relevant findings are triaged.
+The private-channel gate is now `PASS`. Report receipt and release-relevant
+triage remain `PENDING-HUMAN`; neither has occurred or been claimed. The overall
+controlled-cohort security gate therefore remains `PENDING-HUMAN`.
 
 ## Completed authorized enablement
 
@@ -108,10 +108,19 @@ descriptions, CI logs, cohort evidence, or launch copy.
 
 - Local implementation and non-publishing verification may continue while the
   report receipt and triage are pending.
-- Do not publish the cohort release, invite external miners, amplify the subnet,
-  or claim cohort readiness before the report is privately received and triaged.
-- A finding that affects the controlled-cohort threat model must be fixed and
-  covered by a regression test before publication.
+- Publishing immutable handoff artifacts while receipt and triage remain
+  pending requires one explicit `STOP-LEON` decision that names the exact source
+  SHAs, tag, assets, accepted unknown risk, rollback/deprecation path, and the
+  fact that the security gate remains `PENDING-HUMAN`.
+- Without that accepted-risk decision, publication remains blocked pending an
+  operator decision. The release process does not wait indefinitely for an
+  unreceived report and does not reinterpret silence as a security pass.
+- An accepted-risk publication decision does not authorize participant contact,
+  registration, axon publication, live weights, or amplification, and it does
+  not make the release `cohort-ready`.
+- If a report is received before publication, triage it. Any finding that affects
+  the controlled-cohort threat model must be fixed and covered by a regression
+  test before publication.
 - A finding that cannot be evaluated privately leaves the security gate
   `PENDING-HUMAN`; absence of disclosed detail is not evidence that no finding
   exists.

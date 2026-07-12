@@ -13,11 +13,14 @@ into Bittensor weights.
 
 ## Release state
 
-The protocol and operator surface are implemented locally, but this repository
-is **not launch-live as of 2026-07-12**. The engine's public repository/release
-asset, the subnet release, private security triage, and external-miner proof are
-still gated. Do not onboard a participant from a local path, editable engine
-checkout, private archive, or unpublished wheel.
+The protocol and operator surface are implemented locally, but the controlled
+handoff is not live until immutable engine and subnet releases exist and hosted
+CI is green on their exact source commits. GitHub private vulnerability
+reporting is enabled; report receipt and triage remain explicitly pending. A
+release while that risk remains pending requires a separate `STOP-LEON`
+accepted-risk decision and does not make the security gate or cohort proof pass.
+Do not onboard a participant from a local path, editable engine checkout,
+private archive, or unpublished wheel.
 
 Historical public-testnet proof remains valid: netuid 523 accepted weights,
 processed a Yuma incentive pass, and later discovered two first-party axons from
@@ -26,8 +29,8 @@ axon addresses are private RFC1918 addresses that the RC public endpoint policy
 now rejects. See the status document for the exact separation between historical
 evidence and current readiness.
 
-The controlled cohort can proceed only after immutable public artifacts exist.
-The exact install commands and hashes will live in
+Unsigned handoff preparation can begin only after immutable public artifacts
+exist. The exact install commands and immutable release/checksum locations live in
 [`docs/hackerquest-miner-quickstart.md`](docs/hackerquest-miner-quickstart.md).
 The subnet package already pins `dolores-autocurricula==0.2.0rc1`; miners never
 set a source-path override, install an adjacent checkout, or receive a private path.

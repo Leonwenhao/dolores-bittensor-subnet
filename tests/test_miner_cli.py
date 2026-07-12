@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import bittensor as bt
 import pytest
 
 from dolores_subnet import miner_cli
@@ -552,6 +553,89 @@ def test_public_serve_forbids_allow_any_signed_validator(tmp_path, capsys) -> No
     assert "forbids --allow-any-signed-validator" in capsys.readouterr().err
 
 
+def test_serve_constructs_axon_with_exact_external_endpoint(monkeypatch, capsys) -> None:
+    wallet = SimpleNamespace(hotkey=SimpleNamespace(ss58_address=HOTKEY_SS58))
+    calls: dict[str, list[Any]] = {
+        "wallet": [],
+        "axon": [],
+        "attach": [],
+        "publish": [],
+        "start": [],
+        "stop": [],
+    }
+
+    class FakeAxon:
+        def __init__(self, **kwargs: Any) -> None:
+            self.wallet = kwargs["wallet"]
+            self.kwargs = kwargs
+
+        def start(self) -> FakeAxon:
+            calls["start"].append(self)
+            return self
+
+        def stop(self) -> None:
+            calls["stop"].append(self)
+
+    def fake_wallet(*, name: str, hotkey: str) -> Any:
+        calls["wallet"].append((name, hotkey))
+        return wallet
+
+    def fake_axon(**kwargs: Any) -> FakeAxon:
+        calls["axon"].append(kwargs)
+        return FakeAxon(**kwargs)
+
+    def fake_attach(axon: FakeAxon, *, forward: Any, blacklist: Any) -> FakeAxon:
+        calls["attach"].append((axon, forward, blacklist))
+        return axon
+
+    def fake_publish(args: Any, *, axon: FakeAxon) -> None:
+        calls["publish"].append((args.network, args.netuid, axon))
+        assert axon.kwargs == {
+            "wallet": wallet,
+            "port": PUBLIC_PORT,
+            "ip": "0.0.0.0",
+            "external_ip": PUBLIC_IP,
+            "external_port": PUBLIC_PORT,
+        }
+
+    monkeypatch.setattr(bt, "Wallet", fake_wallet)
+    monkeypatch.setattr(bt, "Axon", fake_axon)
+    monkeypatch.setattr(miner_cli, "attach_miner_axon", fake_attach)
+    monkeypatch.setattr(miner_cli, "publish_axon", fake_publish)
+    monkeypatch.setattr(
+        miner_cli.time,
+        "sleep",
+        lambda seconds: (_ for _ in ()).throw(KeyboardInterrupt),
+    )
+    args = SimpleNamespace(
+        validator_hotkey=["validator-hotkey"],
+        allow_any_signed_validator=False,
+        publish=True,
+        quota=1,
+        port=PUBLIC_PORT,
+        wallet_name="cohort-wallet",
+        wallet_hotkey="cohort-miner",
+        task_dir=[str(Path(__file__).resolve().parents[1] / "examples/tasks/honest_example")],
+        host="0.0.0.0",
+        external_ip=PUBLIC_IP,
+        external_port=PUBLIC_PORT,
+        network="test",
+        netuid=523,
+    )
+
+    assert miner_cli.serve_command(args) == 0
+
+    assert calls["wallet"] == [("cohort-wallet", "cohort-miner")]
+    assert len(calls["axon"]) == 1
+    axon = calls["start"][0]
+    assert calls["publish"] == [("test", 523, axon)]
+    assert calls["stop"] == [axon]
+    assert len(calls["attach"]) == 1
+    output = capsys.readouterr().out
+    assert f"endpoint=0.0.0.0:{PUBLIC_PORT}" in output
+    assert "wire_miner_stopped" in output
+
+
 def test_public_publish_requires_explicit_testnet_target() -> None:
     args = SimpleNamespace(publish=True, network=None, netuid=None)
 
@@ -561,3 +645,116 @@ def test_public_publish_requires_explicit_testnet_target() -> None:
         assert str(exc) == "public --publish requires explicit --network test --netuid 523"
     else:  # pragma: no cover - explicit chain targeting is a release gate.
         raise AssertionError("publication accepted an implicit chain target")
+
+
+def test_public_publish_submits_exact_target_polls_readback_and_reports_success(
+    monkeypatch, capsys
+) -> None:
+    calls: dict[str, list[Any]] = {
+        "network": [],
+        "serve": [],
+        "metagraph": [],
+        "sleep": [],
+    }
+    axon = SimpleNamespace(
+        wallet=SimpleNamespace(
+            hotkey=SimpleNamespace(ss58_address=HOTKEY_SS58),
+        )
+    )
+
+    class FakeSubtensor:
+        def __init__(self, *, network: str) -> None:
+            calls["network"].append(network)
+
+        def serve_axon(self, *, netuid: int, axon: Any) -> Any:
+            calls["serve"].append((netuid, axon))
+            return SimpleNamespace(success=True, message="accepted")
+
+        def metagraph(self, *, netuid: int, lite: bool) -> Any:
+            calls["metagraph"].append((netuid, lite))
+            ip = "1.1.1.1" if len(calls["metagraph"]) == 1 else PUBLIC_IP
+            return SimpleNamespace(
+                hotkeys=[HOTKEY_SS58],
+                axons=[SimpleNamespace(ip=ip, port=PUBLIC_PORT)],
+            )
+
+    monkeypatch.setattr(bt, "Subtensor", FakeSubtensor)
+    monkeypatch.setattr(
+        miner_cli.time,
+        "sleep",
+        lambda seconds: calls["sleep"].append(seconds),
+    )
+    args = SimpleNamespace(
+        publish=True,
+        network="test",
+        netuid=523,
+        host="0.0.0.0",
+        port=PUBLIC_PORT,
+        external_ip=PUBLIC_IP,
+        external_port=PUBLIC_PORT,
+    )
+
+    miner_cli.publish_axon(args, axon=axon)
+
+    assert calls == {
+        "network": ["test"],
+        "serve": [(523, axon)],
+        "metagraph": [(523, True), (523, True)],
+        "sleep": [2],
+    }
+    assert capsys.readouterr().out == (
+        f"axon_publish=ok netuid=523 external={PUBLIC_IP}:{PUBLIC_PORT} "
+        "readback=exact message=accepted\n"
+    )
+
+
+def test_public_publish_fails_after_exact_readback_never_appears(
+    monkeypatch, capsys
+) -> None:
+    calls: dict[str, list[Any]] = {"metagraph": [], "sleep": []}
+    axon = SimpleNamespace(
+        wallet=SimpleNamespace(
+            hotkey=SimpleNamespace(ss58_address=HOTKEY_SS58),
+        )
+    )
+
+    class FakeSubtensor:
+        def __init__(self, *, network: str) -> None:
+            assert network == "test"
+
+        def serve_axon(self, *, netuid: int, axon: Any) -> Any:
+            assert netuid == 523
+            assert axon is not None
+            return SimpleNamespace(success=True, message="accepted")
+
+        def metagraph(self, *, netuid: int, lite: bool) -> Any:
+            calls["metagraph"].append((netuid, lite))
+            return SimpleNamespace(
+                hotkeys=[HOTKEY_SS58],
+                axons=[SimpleNamespace(ip="1.1.1.1", port=PUBLIC_PORT)],
+            )
+
+    monkeypatch.setattr(bt, "Subtensor", FakeSubtensor)
+    monkeypatch.setattr(
+        miner_cli.time,
+        "sleep",
+        lambda seconds: calls["sleep"].append(seconds),
+    )
+    args = SimpleNamespace(
+        publish=True,
+        network="test",
+        netuid=523,
+        host="0.0.0.0",
+        port=PUBLIC_PORT,
+        external_ip=PUBLIC_IP,
+        external_port=PUBLIC_PORT,
+    )
+
+    with pytest.raises(RuntimeError, match="did not read back exact"):
+        miner_cli.publish_axon(args, axon=axon)
+
+    assert calls == {
+        "metagraph": [(523, True)] * 6,
+        "sleep": [2] * 5,
+    }
+    assert capsys.readouterr().out == ""

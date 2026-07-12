@@ -199,7 +199,9 @@ dolores-miner health --host 127.0.0.1 --port "$PUBLIC_PORT"
 
 Then have the operator test inbound TCP reachability from the validator side.
 The local `health` command checks the listener only; it does not claim metagraph
-publication or remote reachability. Stop the foreground miner after these checks.
+publication or authenticated remote reachability, and it is not the cohort
+endpoint-health receipt. The authoritative validator-side health command is in
+the final gate below. Stop the foreground miner after these checks.
 
 ## 6. Publish the exact axon endpoint
 
@@ -324,12 +326,40 @@ sudo -u dolores-miner /opt/dolores-miner/venv/bin/dolores-miner \
   health --host 127.0.0.1 --port "$PUBLIC_PORT"
 ```
 
-Finally, verify from the validator side that:
+Finally, on the validator host, load the validator service's secure environment
+without printing it and run the authoritative cohort endpoint health command:
 
-1. the exact public axon remains in the netuid-523 metagraph;
-2. signed reachability succeeds through the exact validator allowlist;
-3. a controlled `systemctl restart dolores-miner` preserves the same endpoint;
-4. the post-restart local health and validator-side signed reachability both pass.
+```bash
+dolores-validator health \
+  --mode testnet \
+  --work /var/lib/dolores-validator \
+  --wallet.name "$BT_WALLET_NAME" \
+  --wallet.hotkey "$BT_WALLET_HOTKEY" \
+  --network test \
+  --netuid 523
+```
+
+Do not add `--no-probe-wire`: the signed quota-zero wire probe is enabled by
+default, and disabling it deliberately makes health unhealthy. The command
+discovers the endpoint from the netuid-523 metagraph and reports
+`discovered_public_miners`, `signed_probe_requested`,
+`signed_reachable_miners`, and `degraded_conditions`. A successful signed reply
+proves that the miner process is alive at that discovered endpoint and can
+answer the allowlisted validator's authenticated wire request. It does not
+replace the miner-side service receipt: `systemctl status` and the journal prove
+supervision, while the complete `dolores-miner doctor` covers service-account
+metadata, the local listener, inbound public TCP, and exact axon read-back.
+
+Capture timestamped evidence that:
+
+1. `systemctl status dolores-miner.service` and its journal show the supervised
+   process running without a restart loop;
+2. the redacted complete doctor returns top-level `"ok": true`;
+3. the validator health JSON discovers the exact public axon and reports every
+   discovered cohort miner signed-reachable with no endpoint-related degraded
+   condition;
+4. a controlled `systemctl restart dolores-miner` preserves the same endpoint,
+   after which the doctor and authoritative validator health command both pass.
 
 Do not hand the validator a manual endpoint. Cohort evidence must use metagraph
 discovery.

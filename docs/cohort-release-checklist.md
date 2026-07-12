@@ -25,16 +25,22 @@ was actually implemented and run; do not substitute proposed CLI syntax.
 | Field | Value |
 |---|---|
 | Review timestamp (UTC) | `2026-07-12T16:25:12Z` |
-| Engine immutable revision | artifact `7be1167ee0afad8857c2b3fb435dc14ad476e2a0`; manifest `8c096196ceccd02906f21b2476c0b82737c01516` |
-| Engine wheel filename and SHA-256 | `dolores_autocurricula-0.2.0rc1-py3-none-any.whl`; `6cc5a5e91c4fee73aa34f7d16d5905cb21366439fea8b4188f2c3db9978954fc` |
-| Subnet immutable revision | artifact `c699a3e0b58c0b08c5c1e82b673d7c8caa6d7118` |
-| Subnet wheel filename and SHA-256 | `dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl`; `e87c0b0e5625585665f2b6449543b66a7b8d88175cbd4bb7cf2f1ce7c196c888` |
-| Verifier image tag and immutable digest | `dolores-verifier-pytest:0.2.0rc1`; `sha256:a9a963be4c32c57f2af3ac927fe92f45068869c9a3ea617e58df5cd81fd045c4` |
-| Local gate result | `PASS` — see [`release-manifest-0.2.0rc1.md`](release-manifest-0.2.0rc1.md) |
+| Engine immutable source revision | `814d9bcc451a36db1b341c2ddd6f27d1aaed565b` |
+| Engine wheel filename and SHA-256 | `dolores_autocurricula-0.2.0rc1-py3-none-any.whl`; `a6cc2ce41c867e221e2ecbe44a9168d8235a609c81a487b18d055946c3d35078` |
+| Subnet artifact source revision | Recorded in the external `release-manifest-0.2.0rc1.md` after the final artifact build; public tag creation remains `STOP-LEON`. |
+| Subnet wheel filename and SHA-256 | `dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl`; exact SHA-256 recorded in the external release manifest after the final artifact build. |
+| Verifier Dockerfile SHA-256 | `219605da24bf86862b20802f07315ab5869ca402e0810e5c12e4e8aeb1e017a0` |
+| Verifier image tag and image ID | `dolores-verifier-pytest:0.2.0rc1`; `sha256:ac7a99b6f218563c6ea2f701e0ae4727854d998220fa6bfa5a90b78af4dec4e5` |
+| Local gate result | `PASS` — see the unpackaged local `release-manifest-0.2.0rc1.md`; it is intended to be published beside the artifacts only after `STOP-LEON` approval. |
 | Security disclosure gate | `PENDING-HUMAN` |
 | Public artifact gate | `PENDING-HUMAN` |
 | External cohort proof | `PENDING-HUMAN` |
 | Final outcome | `conditionally ready` |
+
+The packaged checklist intentionally does not embed its own subnet source
+commit or wheel digest. Those values are recorded in the external release
+manifest after the immutable artifacts are built, avoiding a self-referential
+artifact hash while preserving exact provenance.
 
 ## 0. Invariants
 
@@ -111,7 +117,7 @@ These are local/configuration gates until publication is explicitly approved.
 | PASS | Local rehearsal mode remains clearly separate and may use loopback/private addresses without being called public. | CLI/help and documentation review. |
 | PASS | Supported Ubuntu VPS deployment instructions use an installed release, not a private checkout. | Clean VPS rehearsal transcript or equivalent clean-machine evidence. |
 | PENDING-HUMAN | Supervisor configuration restarts the miner and preserves logs. | Supervisor validation and controlled restart evidence. |
-| PENDING-HUMAN | Health evidence covers process state, local listener, exact metagraph publication, and reachability from the validator side. | Health output and observation timestamp. |
+| PENDING-HUMAN | Health evidence covers supervised process state, local listener, exact metagraph publication, and authenticated reachability from the validator side. | Timestamped `systemctl status`/journal receipt, redacted complete `dolores-miner doctor` JSON, and `dolores-validator health --mode testnet --work /var/lib/dolores-validator --wallet.name <VALIDATOR_WALLET> --wallet.hotkey <VALIDATOR_HOTKEY> --network test --netuid 523` JSON. The default signed reply proves miner-process liveness at the metagraph-discovered endpoint; do not use `--no-probe-wire`. |
 
 ## 4. Validator-owned holdout gates
 
@@ -136,7 +142,7 @@ These are local/configuration gates until publication is explicitly approved.
 | PASS | Failure after durable evaluation does not duplicate audit rows. | Restart test and row-count evidence. |
 | PASS | Restart in ambiguous `weights_submitting` state fails closed and never auto-resubmits. | Crash/restart test. |
 | PASS | Miner endpoints come from the netuid-523 metagraph in the supported path; no manual endpoint injection is used. | Discovery artifact and command transcript. |
-| PENDING-HUMAN | Health reports Docker status, discovered/reachable miners, last completed epoch, last successful weight receipt, blocks since validator update, chain readiness, and degraded conditions. | Health output captured after a restart. |
+| PENDING-HUMAN | The authoritative `dolores-validator health` command reports Docker status, metagraph-discovered/signed-reachable miners, last completed epoch, last successful weight receipt, blocks since validator update, chain readiness, and degraded conditions. | Validator-side JSON captured after a restart with the default signed quota-zero probe enabled; no manual endpoint or `--no-probe-wire`. |
 | PASS | Two consecutive dry-run epochs reproduce across a process restart. | Epoch artifacts, replay results, restart timestamp, and absence of duplicate rows. |
 | PENDING-HUMAN | A documented supervised `systemd` method runs recurring ticks and retains logs. | Unit/timer verification and controlled restart evidence. |
 

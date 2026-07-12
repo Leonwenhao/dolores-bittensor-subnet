@@ -84,11 +84,12 @@ dolores-miner --help
 dolores-validator --help
 ```
 
-The miner journey is `doctor -> init -> validate -> register -> serve ->
-health`. A miner needs Python, the pinned lightweight engine, Bittensor, a
-wallet/hotkey, authored tasks, and a stable globally routable IPv4 endpoint. A
-miner does **not** need Docker, DuckDB, Streamlit, Fireworks, solver-panel
-credentials, or validator internals.
+The miner journey is `doctor -> init -> validate -> register -> serve`, with
+`dolores-miner health` available as a local-listener diagnostic. A miner needs
+Python, the pinned lightweight engine, Bittensor, a wallet/hotkey, authored
+tasks, and a stable globally routable IPv4 endpoint. A miner does **not** need
+Docker, DuckDB, Streamlit, Fireworks, solver-panel credentials, or validator
+internals.
 
 The supported public serve path requires an exact public IPv4/port, an
 allowlisted validator hotkey, `--network test --netuid 523`, and exact metagraph
@@ -105,10 +106,15 @@ dropped capabilities, no-new-privileges, and CPU, memory, PID, and tmpfs limits.
 `dolores-validator tick` runs one operator-supervised epoch. It holds an
 exclusive OS lock, allocates epoch IDs monotonically, persists atomic phase
 state, discovers public axons, and fails closed on ambiguous weight submission.
-`dolores-validator health` reports local runtime, Docker, read-only chain state,
-metagraph discovery, and optional signed reachability. A system supervisor may
-schedule ticks; the application does not hide lifecycle or retry state inside a
-second daemon.
+`dolores-validator health` is the authoritative cohort endpoint health command.
+It reports local runtime, Docker, read-only chain state, metagraph discovery,
+and signed reachability enabled by default. A successful signed quota-zero
+request/reply proves that the miner process is alive at the metagraph-discovered
+endpoint and can answer the validator's authenticated wire protocol. It
+complements `dolores-miner doctor`, which covers the service-account metadata,
+local listener, inbound public TCP, and exact published-axon read-back. A system
+supervisor may schedule ticks; the application does not hide lifecycle or retry
+state inside a second daemon.
 
 Live weights remain protected by four independent gates and commit-reveal
 uncertainty remains fail-closed. Paid solver-panel calibration is off by default

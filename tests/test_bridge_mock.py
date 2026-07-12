@@ -32,6 +32,57 @@ def test_validate_submission_runs_local_fixture_pipeline(tmp_path) -> None:
     assert outcome.verification_summary["executed"] is True
 
 
+def test_wire_submission_passes_author_docker_before_validator_holdout(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    cfg = SubnetConfig.from_env(
+        mode="wire",
+        work_dir=tmp_path,
+        holdout_secret="positive-integration-test-secret",
+    )
+    task = _task()
+    events: list[str] = []
+    real_pipeline = bridge.run_task_pipeline
+    real_holdout = bridge.evaluate_holdout
+
+    def record_author_pipeline(*args, **kwargs):  # noqa: ANN002, ANN003
+        result = real_pipeline(*args, **kwargs)
+        assert result.verification is not None
+        assert result.verification.status == "passed"
+        assert result.verification.executed is True
+        assert result.verification.containerized is True
+        events.append("author_verified")
+        return result
+
+    def record_validator_holdout(*args, **kwargs):  # noqa: ANN002, ANN003
+        assert events == ["author_verified"]
+        evidence = real_holdout(*args, **kwargs)
+        events.append("validator_holdout")
+        return evidence
+
+    monkeypatch.setattr(bridge, "run_task_pipeline", record_author_pipeline)
+    monkeypatch.setattr(bridge, "evaluate_holdout", record_validator_holdout)
+
+    outcome = bridge.validate_submission(
+        to_wire(task),
+        cfg,
+        context=GateContext(),
+        miner_hotkey="external-miner",
+    )
+
+    assert events == ["author_verified", "validator_holdout"]
+    assert outcome.verification_summary["status"] == "passed"
+    assert outcome.verification_summary["executed"] is True
+    assert outcome.verification_summary["containerized"] is True
+    assert outcome.holdout_summary["passed"] is True
+    assert outcome.holdout_summary["reference_passed"] is True
+    assert outcome.holdout_summary["executed"] is True
+    assert outcome.holdout_summary["containerized"] is True
+    assert outcome.holdout_summary["probes_caught"]
+    assert all(outcome.holdout_summary["probes_caught"].values())
+
+
 def test_infra_error_is_purged_and_not_penalized(tmp_path, monkeypatch) -> None:
     from dolores.archive.db import ArchiveDB
 

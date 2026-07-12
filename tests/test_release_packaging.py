@@ -16,7 +16,7 @@ from dolores_subnet import __version__
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RC_VERSION = "0.2.0rc1"
 GOLDEN_PARSER_HASH = "fbf1ca8f3b9cad51370332bb1329d03b16306d4828bed9674e1a3d2a2f80a249"
-ENGINE_WHEEL_SHA256 = "6cc5a5e91c4fee73aa34f7d16d5905cb21366439fea8b4188f2c3db9978954fc"
+ENGINE_WHEEL_SHA256 = "a6cc2ce41c867e221e2ecbe44a9168d8235a609c81a487b18d055946c3d35078"
 
 
 def test_release_metadata_pins_engine_sdk_and_installed_commands() -> None:
@@ -36,6 +36,10 @@ def test_release_metadata_pins_engine_sdk_and_installed_commands() -> None:
         "PyYAML>=6.0",
     ]
     assert project["requires-python"] == ">=3.11,<3.12"
+    assert metadata["build-system"] == {
+        "requires": ["setuptools==83.0.0", "wheel==0.47.0"],
+        "build-backend": "setuptools.build_meta",
+    }
     assert metadata["tool"]["setuptools"]["package-data"] == {
         "dolores_subnet": ["_assets/configs/*.yaml"]
     }
@@ -189,7 +193,17 @@ def test_ci_builds_and_smokes_checkout_independent_release_artifacts() -> None:
     release_job = workflow_text.split("  release-artifacts:\n", maxsplit=1)[1]
     assert f"ENGINE_SHA256: {ENGINE_WHEEL_SHA256}" in workflow_text
     assert f"GOLDEN_PARSER_HASH: {GOLDEN_PARSER_HASH}" in workflow_text
-    assert "python -m build --wheel --sdist --outdir /tmp/subnet-dist ." in release_job
+    assert 'PYTHON_VERSION: "3.11.15"' in workflow_text
+    assert 'BUILD_VERSION: "1.5.1"' in workflow_text
+    assert 'SETUPTOOLS_VERSION: "83.0.0"' in workflow_text
+    assert 'WHEEL_VERSION: "0.47.0"' in workflow_text
+    assert "git archive \"$GITHUB_SHA\"" in release_job
+    assert "python -m build --no-isolation --wheel --sdist" in release_job
+    assert 'for copy in a b; do' in release_job
+    assert release_job.count("cmp /tmp/subnet-dist-a/") == 2
+    assert 'python "$source_dir/scripts/normalize_sdist.py" \\' in release_job
+    assert '--epoch "$SOURCE_DATE_EPOCH" \\' in release_job
+    assert '"$dist_dir/dolores_bittensor_subnet-0.2.0rc1.tar.gz"' in release_job
     assert "tar --extract --gzip --file \"$SUBNET_SDIST\"" in release_job
     assert "cd /tmp" in release_job
     assert "/tmp/miner-venv" in release_job

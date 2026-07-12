@@ -9,12 +9,17 @@ permissions:
   contents: read
 
 env:
+  PYTHON_VERSION: "3.11.15"
+  BUILD_VERSION: "1.5.1"
+  SETUPTOOLS_VERSION: "83.0.0"
+  WHEEL_VERSION: "0.47.0"
   ENGINE_VERSION: 0.2.0rc1
-  ENGINE_SHA256: 6cc5a5e91c4fee73aa34f7d16d5905cb21366439fea8b4188f2c3db9978954fc
+  ENGINE_SHA256: a6cc2ce41c867e221e2ecbe44a9168d8235a609c81a487b18d055946c3d35078
   ENGINE_WHEEL_URL: https://github.com/Leonwenhao/dolores-autocurricula/releases/download/v0.2.0-rc.1/dolores_autocurricula-0.2.0rc1-py3-none-any.whl
   ENGINE_WHEEL: /tmp/dolores_autocurricula-0.2.0rc1-py3-none-any.whl
   SUBNET_WHEEL: /tmp/subnet-dist/dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl
   SUBNET_SDIST: /tmp/subnet-dist/dolores_bittensor_subnet-0.2.0rc1.tar.gz
+  SOURCE_DATE_EPOCH: "1783869698"
   GOLDEN_PARSER_HASH: fbf1ca8f3b9cad51370332bb1329d03b16306d4828bed9674e1a3d2a2f80a249
 
 jobs:
@@ -24,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
       - name: Fetch pinned Dolores engine
         run: |
@@ -62,7 +67,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
       - name: Fetch and verify pinned Dolores engine
         run: |
@@ -71,30 +76,67 @@ jobs:
           echo "$ENGINE_SHA256  $ENGINE_WHEEL" | sha256sum --check --strict
       - name: Build subnet wheel and source distribution
         run: |
-          python -m pip install --upgrade build
-          rm -rf /tmp/subnet-dist
-          python -m build --wheel --sdist --outdir /tmp/subnet-dist .
+          python -m pip install \
+            "build==$BUILD_VERSION" \
+            "setuptools==$SETUPTOOLS_VERSION" \
+            "wheel==$WHEEL_VERSION"
+          rm -rf /tmp/subnet-source-a /tmp/subnet-source-b \
+            /tmp/subnet-dist-a /tmp/subnet-dist-b /tmp/subnet-dist
+          for copy in a b; do
+            source_dir="/tmp/subnet-source-$copy"
+            dist_dir="/tmp/subnet-dist-$copy"
+            install -d "$source_dir" "$dist_dir"
+            git archive "$GITHUB_SHA" | tar --extract --directory "$source_dir"
+            python -m build --no-isolation --wheel --sdist \
+              --outdir "$dist_dir" "$source_dir"
+            python "$source_dir/scripts/normalize_sdist.py" \
+              --epoch "$SOURCE_DATE_EPOCH" \
+              "$dist_dir/dolores_bittensor_subnet-0.2.0rc1.tar.gz"
+          done
+          cmp /tmp/subnet-dist-a/dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl \
+            /tmp/subnet-dist-b/dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl
+          cmp /tmp/subnet-dist-a/dolores_bittensor_subnet-0.2.0rc1.tar.gz \
+            /tmp/subnet-dist-b/dolores_bittensor_subnet-0.2.0rc1.tar.gz
+          install -d /tmp/subnet-dist
+          install -m 0644 /tmp/subnet-dist-a/* /tmp/subnet-dist/
           test -f "$SUBNET_WHEEL"
           test -f "$SUBNET_SDIST"
           sha256sum "$SUBNET_WHEEL" "$SUBNET_SDIST"
           tar --list --gzip --file "$SUBNET_SDIST"
       - name: Assemble and extract the checkout-independent release bundle
+        env:
+          ENGINE_SOURCE_COMMIT: 814d9bcc451a36db1b341c2ddd6f27d1aaed565b
+          SUBNET_SOURCE_COMMIT: ${{ github.sha }}
         run: |
-          rm -rf /tmp/release-bundle /tmp/bundle-smoke
-          install -d /tmp/release-bundle/artifacts /tmp/release-bundle/examples/tasks
-          install -m 0644 "$ENGINE_WHEEL" "$SUBNET_WHEEL" "$SUBNET_SDIST" \
-            /tmp/release-bundle/artifacts/
-          cp -R examples/tasks/honest_example \
-            /tmp/release-bundle/examples/tasks/honest_example
-          tar --create --gzip \
-            --file /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz \
-            --directory /tmp release-bundle
+          rm -rf /tmp/bundle-smoke
+          python -m pip install "$ENGINE_WHEEL"
+          python -m pip install --no-deps "$SUBNET_WHEEL"
+          python scripts/build_release_bundle.py build \
+            --version "$ENGINE_VERSION" \
+            --source-date-epoch "$SOURCE_DATE_EPOCH" \
+            --engine-source-commit "$ENGINE_SOURCE_COMMIT" \
+            --subnet-source-commit "$SUBNET_SOURCE_COMMIT" \
+            --engine-wheel "$ENGINE_WHEEL" \
+            --subnet-wheel "$SUBNET_WHEEL" \
+            --subnet-sdist "$SUBNET_SDIST" \
+            --fixture-dir examples/tasks/honest_example \
+            --output /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz
+          python scripts/build_release_bundle.py verify \
+            --version "$ENGINE_VERSION" \
+            --source-date-epoch "$SOURCE_DATE_EPOCH" \
+            --engine-source-commit "$ENGINE_SOURCE_COMMIT" \
+            --subnet-source-commit "$SUBNET_SOURCE_COMMIT" \
+            --bundle /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz
           sha256sum /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz
           install -d /tmp/bundle-smoke
           tar --extract --gzip \
             --file /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz \
             --directory /tmp/bundle-smoke
           test -f /tmp/bundle-smoke/release-bundle/examples/tasks/honest_example/task.yaml
+          test -f /tmp/bundle-smoke/release-bundle/SHA256SUMS
+          test -f /tmp/bundle-smoke/release-bundle/provenance.json
+          cd /tmp/bundle-smoke/release-bundle
+          sha256sum --check --strict SHA256SUMS
       - name: Clean miner install and canonical digest smoke
         run: |
           python -m venv /tmp/miner-venv

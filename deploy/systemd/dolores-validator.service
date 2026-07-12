@@ -1,0 +1,46 @@
+[Unit]
+Description=Dolores serialized validator dry-run tick
+Documentation=https://github.com/Leonwenhao/dolores-bittensor-subnet
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=dolores-validator
+Group=dolores-validator
+SupplementaryGroups=docker
+EnvironmentFile=/etc/dolores/validator.env
+StateDirectory=dolores-validator
+WorkingDirectory=/var/lib/dolores-validator
+
+ExecStart=/opt/dolores-validator/venv/bin/dolores-validator tick --mode testnet --work /var/lib/dolores-validator --quota ${DOLORES_VALIDATOR_QUOTA} --timeout ${DOLORES_VALIDATOR_TIMEOUT} --wallet.name ${BT_WALLET_NAME} --wallet.hotkey ${BT_WALLET_HOTKEY} --network test --netuid 523 --chain dry-run --panel-mode mock
+ExecStartPost=/opt/dolores-validator/venv/bin/dolores-validator health --mode testnet --work /var/lib/dolores-validator --wallet.name ${BT_WALLET_NAME} --wallet.hotkey ${BT_WALLET_HOTKEY} --network test --netuid 523
+
+Restart=on-failure
+RestartSec=30s
+TimeoutStartSec=45min
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dolores-validator
+
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/dolores-validator
+
+[Install]
+WantedBy=multi-user.target

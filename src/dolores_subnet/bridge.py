@@ -9,10 +9,17 @@ from pathlib import Path
 from typing import Any
 
 from dolores.pipeline import run_task_pipeline
+from dolores.verifier.docker_runner import DockerRunner
 
 from dolores_subnet import archive
 from dolores_subnet.config import SubnetConfig
 from dolores_subnet.gates import GateContext, run_pre_gates
+from dolores_subnet.holdout import (
+    POLICY_VERSION,
+    HoldoutPolicyError,
+    evaluate_holdout,
+    validate_holdout_support,
+)
 from dolores_subnet.packaging import materialize
 from dolores_subnet.scoring import task_value_from_score
 
@@ -29,6 +36,7 @@ class SubmissionOutcome:
     gates: dict[str, bool]
     components: dict[str, float] = field(default_factory=dict)
     verification_summary: dict[str, Any] = field(default_factory=dict)
+    holdout_summary: dict[str, Any] = field(default_factory=dict)
     reason: str = ""
     # Per-attempt solver-panel rows. Deliberately excluded from to_record so
     # volatile provider telemetry never enters submissions.jsonl / replay.
@@ -53,6 +61,7 @@ class SubmissionOutcome:
             "task_value": self.task_value,
             "components": self.components,
             "verification": self.verification_summary,
+            "holdout": self.holdout_summary,
         }
 
 
@@ -95,7 +104,25 @@ def validate_submission(
 
     task = decision.task
     assert task is not None
-    _prepare_dolores_docker_env(cfg)
+    if cfg.holdout_required:
+        try:
+            validate_holdout_support(task)
+        except HoldoutPolicyError as exc:
+            return SubmissionOutcome(
+                status="rejected",
+                task_id=task.task_id,
+                package_hash=decision.task_hash,
+                task_value=0.0,
+                gates=dict(decision.gates),
+                holdout_summary={
+                    "passed": False,
+                    "status": "unsupported",
+                    "reason": str(exc),
+                    "policy_version": POLICY_VERSION,
+                    "base_package_hash": decision.task_hash,
+                },
+                reason=f"holdout:unsupported:{exc}",
+            )
     with tempfile.TemporaryDirectory(prefix="dolores-subnet-task-") as temp:
         task_dir = materialize(task, root=Path(temp))
         result = run_task_pipeline(
@@ -108,12 +135,42 @@ def validate_submission(
             allow_docker_fallback=False,
         )
 
+    holdout_summary: dict[str, Any] = {}
+    verification = result.verification
+    if cfg.holdout_required and verification is not None and verification.status == "passed":
+        evidence = evaluate_holdout(
+            task,
+            package_hash=decision.task_hash or task.stable_hash(),
+            secret=cfg.holdout_secret or "",
+            runner=DockerRunner(
+                image=cfg.verifier_image,
+                allow_fallback=False,
+            ),
+            require_containerized=True,
+        )
+        holdout_summary = evidence.to_record()
+        if not evidence.passed:
+            if decision.task_hash:
+                archive.purge_task(cfg.archive_db, decision.task_hash)
+            status = "infra_error" if evidence.status == "infra_error" else "rejected"
+            return SubmissionOutcome(
+                status=status,
+                task_id=task.task_id,
+                package_hash=decision.task_hash,
+                task_value=0.0,
+                gates=dict(decision.gates),
+                verification_summary=_verification_summary(verification),
+                holdout_summary=holdout_summary,
+                reason=f"holdout:{evidence.status}:{evidence.reason}",
+            )
+
     return _outcome_from_pipeline(
         result,
         cfg=cfg,
         task_id=task.task_id,
         task_hash=decision.task_hash,
         gates=dict(decision.gates),
+        holdout_summary=holdout_summary,
     )
 
 
@@ -124,6 +181,7 @@ def _outcome_from_pipeline(
     task_id: str,
     task_hash: str | None,
     gates: dict[str, bool],
+    holdout_summary: dict[str, Any] | None = None,
 ) -> SubmissionOutcome:
     verification = result.verification
     score = result.score
@@ -134,6 +192,7 @@ def _outcome_from_pipeline(
             package_hash=task_hash,
             task_value=0.0,
             gates=gates,
+            holdout_summary=holdout_summary or {},
             reason=f"pipeline:{result.error or result.status}",
         )
 
@@ -148,6 +207,7 @@ def _outcome_from_pipeline(
             task_value=0.0,
             gates=gates,
             verification_summary=summary,
+            holdout_summary=holdout_summary or {},
             reason=verification.fallback_reason or "infrastructure failure",
         )
 
@@ -159,6 +219,7 @@ def _outcome_from_pipeline(
             task_value=0.0,
             gates=gates,
             verification_summary=summary,
+            holdout_summary=holdout_summary or {},
             reason=f"safety:{verification.safety_findings[0].message}",
         )
 
@@ -179,6 +240,7 @@ def _outcome_from_pipeline(
                 task_value=0.0,
                 gates=gates,
                 verification_summary=summary,
+                holdout_summary=holdout_summary or {},
                 reason="docker accepted without containerized execution",
             )
     return SubmissionOutcome(
@@ -189,6 +251,7 @@ def _outcome_from_pipeline(
         gates=gates,
         components=components,
         verification_summary=summary,
+        holdout_summary=holdout_summary or {},
         reason=reason,
         panel_rows=_panel_rows(result),
     )
@@ -204,15 +267,6 @@ def _panel_rows(result: Any) -> list[dict[str, Any]]:
         elif isinstance(run, dict):
             rows.append(dict(run))
     return rows
-
-
-def _prepare_dolores_docker_env(cfg: SubnetConfig) -> None:
-    if cfg.backend != "docker":
-        return
-    import os
-
-    dockerfile = cfg.dolores_repo / "docker" / "verifier" / "Dockerfile"
-    os.environ.setdefault("DOLORES_VERIFIER_DOCKERFILE", str(dockerfile))
 
 
 def _is_infra_error(verification: Any) -> bool:

@@ -55,6 +55,11 @@ def test_mode_defaults_are_fail_closed_for_validator_modes() -> None:
     mock = SubnetConfig.from_env(mode="mock")
     assert mock.backend == "local"
     assert mock.pipeline_mode == "fixture"
+    assert mock.holdout_required is False
+
+    wire = SubnetConfig.from_env(mode="wire", holdout_secret="not-a-real-secret")
+    assert wire.holdout_required is True
+    assert "not-a-real-secret" not in repr(wire)
 
 
 def test_commit_reveal_opt_in_loads_only_from_explicit_arg(monkeypatch) -> None:

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import json
-import shutil
+import os
+import tempfile
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from dolores_subnet.atomic import append_jsonl_fsync, atomic_replace_file
 from dolores_subnet.config import SubnetConfig
 
 
@@ -26,8 +27,7 @@ def append_submission(cfg: SubnetConfig, record: dict[str, Any]) -> None:
     cfg.submissions_path.parent.mkdir(parents=True, exist_ok=True)
     payload = _jsonable(record)
     payload.setdefault("created_at", datetime.now(UTC).isoformat())
-    with cfg.submissions_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, sort_keys=True) + "\n")
+    append_jsonl_fsync(cfg.submissions_path, payload)
 
 
 def purge_task(db_path: Path, task_hash: str) -> None:
@@ -49,18 +49,37 @@ def purge_task(db_path: Path, task_hash: str) -> None:
 
 
 def public_safe_archive_copy(source_db: Path, destination_db: Path) -> Path:
-    destination_db.parent.mkdir(parents=True, exist_ok=True)
-    if destination_db.exists():
-        destination_db.unlink()
-    shutil.copy2(source_db, destination_db)
-    import duckdb
+    """Create a source-consistent sanitized DuckDB and atomically publish it."""
 
-    conn = duckdb.connect(str(destination_db))
+    if source_db.resolve() == destination_db.resolve():
+        raise ValueError("public archive destination must differ from the source")
+    destination_db.parent.mkdir(parents=True, exist_ok=True)
+    fd, raw_temp = tempfile.mkstemp(
+        prefix=f".{destination_db.name}.",
+        suffix=".tmp",
+        dir=destination_db.parent,
+    )
+    os.close(fd)
+    temp_db = Path(raw_temp)
+    temp_db.unlink()
     try:
-        conn.execute("DELETE FROM task_files WHERE file_role = 'hidden_tests'")
+        import duckdb
+
+        conn = duckdb.connect()
+        try:
+            conn.execute(f"ATTACH {_sql_literal(source_db)} AS source_db (READ_ONLY)")
+            conn.execute(f"ATTACH {_sql_literal(temp_db)} AS public_db")
+            conn.execute("COPY FROM DATABASE source_db TO public_db")
+            conn.execute("DELETE FROM public_db.task_files WHERE file_role = 'hidden_tests'")
+            conn.execute("CHECKPOINT public_db")
+            conn.execute("DETACH public_db")
+            conn.execute("DETACH source_db")
+        finally:
+            conn.close()
+        os.chmod(temp_db, 0o600)
+        return atomic_replace_file(temp_db, destination_db)
     finally:
-        conn.close()
-    return destination_db
+        temp_db.unlink(missing_ok=True)
 
 
 def _jsonable(value: Any) -> Any:
@@ -75,3 +94,7 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, Path):
         return str(value)
     return value
+
+
+def _sql_literal(path: Path) -> str:
+    return "'" + str(path).replace("'", "''") + "'"

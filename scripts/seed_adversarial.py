@@ -130,11 +130,13 @@ def _write_raw_case(
     case_dir = out / case
     case_dir.mkdir(parents=True, exist_ok=True)
     (case_dir / "task.yaml").write_text(yaml.safe_dump(package, sort_keys=False), encoding="utf-8")
+    wire_package = dict(package)
+    wire_package["author_tests"] = wire_package.pop("hidden_tests", {})
     payload = {
-        "schema_version": "dolores-subnet-v0",
+        "schema_version": "dolores-subnet-v1",
         "task_id": package["task_id"],
         "package_hash": package_hash,
-        "package": package,
+        "package": wire_package,
         "family": "parser_roundtrip",
         "declared_difficulty": "medium",
     }

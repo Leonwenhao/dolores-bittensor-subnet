@@ -9,7 +9,12 @@ from typing import Any
 from pydantic import ValidationError
 
 from dolores_subnet.config import DEFAULT_QUOTA, SCHEMA_VERSION, SubnetConfig
-from dolores_subnet.packaging import canonical_size, wire_size_ok
+from dolores_subnet.packaging import (
+    WireError,
+    canonical_size,
+    engine_package_from_wire,
+    wire_size_ok,
+)
 
 
 @dataclass(frozen=True)
@@ -72,7 +77,9 @@ def run_pre_gates(
         package = payload.get("package")
         if not isinstance(package, dict):
             raise TypeError("package must be a dict")
-        task = TaskPackage.model_validate(package)
+        task = TaskPackage.model_validate(engine_package_from_wire(package))
+    except WireError as exc:
+        return _fail(gates, "parse", f"invalid:{exc.reason}", exc.detail)
     except ValidationError as exc:
         return _fail(gates, "parse", "invalid:parse", _validation_detail(exc))
     except Exception as exc:  # noqa: BLE001

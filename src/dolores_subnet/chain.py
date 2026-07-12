@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
+import signal
+import threading
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from dolores_subnet.atomic import atomic_write_json
 from dolores_subnet.config import SubnetConfig, assert_safe_network
+from dolores_subnet.endpoints import EndpointPolicyError, require_public_ipv4
 
 LIVE_CONFIRMATION = "I-UNDERSTAND-THIS-WILL-SUBMIT-WEIGHTS"
 CHAIN_PUBLISH_MODES = {"off", "dry-run", "live"}
@@ -24,6 +29,14 @@ class ChainWeightResult:
 
     def to_record(self) -> dict[str, Any]:
         return {"mode": self.mode, "receipt": self.receipt, "reason": self.reason}
+
+
+class ChainAmbiguousSubmissionError(RuntimeError):
+    """A live set_weights call may have reached chain without a definite outcome."""
+
+    def __init__(self, message: str, *, attempt_path: str | os.PathLike[str]) -> None:
+        super().__init__(message)
+        self.attempt_path = str(attempt_path)
 
 
 class ChainClient(Protocol):
@@ -82,28 +95,71 @@ class ChainReadTimeout(RuntimeError):
 CHAIN_READ_TIMEOUT_SECONDS = 90.0
 
 
+class _DeadlineExpired(BaseException):
+    """Internal BaseException so broad ``except Exception`` cannot swallow expiry."""
+
+
 def bounded_call(fn: Any, *args: Any, timeout: float = CHAIN_READ_TIMEOUT_SECONDS, **kwargs: Any):
-    """Run a blocking chain read with a hard deadline.
+    """Run a blocking chain read under a process-exitable POSIX deadline.
 
     Raises ChainReadTimeout on expiry — never returns a default — so hangs
     flow into the same fail-closed error paths as any other read failure
-    (rpc_unreachable receipts, preflight FAIL). The worker thread may leak
-    until process exit; acceptable for one-shot CLI processes.
+    (rpc_unreachable receipts, preflight FAIL).
+
+    Bittensor constructors and metagraphs cannot be safely round-tripped from
+    an isolated child process, so one-shot POSIX CLIs use ``ITIMER_REAL`` in
+    the main thread. Active/nested alarm contexts and non-main threads fail
+    closed without invoking ``fn``; they never fall back to a worker thread
+    that could keep CPython alive after the timeout.
     """
 
-    import concurrent.futures
+    duration = float(timeout)
+    timeout_error = ChainReadTimeout(
+        f"chain read exceeded {duration:.0f}s (testnet websocket hang guard)"
+    )
+    if (
+        os.name != "posix"
+        or not hasattr(signal, "SIGALRM")
+        or not hasattr(signal, "setitimer")
+        or not hasattr(signal, "ITIMER_REAL")
+    ):
+        raise timeout_error
+    if threading.current_thread() is not threading.main_thread():
+        raise ChainReadTimeout(
+            "chain read deadline requires the POSIX main thread "
+            "(testnet websocket hang guard)"
+        )
+    if not math.isfinite(duration) or duration <= 0:
+        raise timeout_error
 
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    previous_timer = signal.getitimer(signal.ITIMER_REAL)
+    if previous_timer[0] > 0 or previous_timer[1] > 0:
+        raise ChainReadTimeout(
+            "chain read deadline unavailable while a SIGALRM timer is active "
+            "(testnet websocket hang guard)"
+        )
+    previous_handler = signal.getsignal(signal.SIGALRM)
+
+    def expire(signum: int, frame: Any) -> None:
+        del signum, frame
+        raise _DeadlineExpired
+
     try:
-        future = executor.submit(fn, *args, **kwargs)
-        try:
-            return future.result(timeout=timeout)
-        except concurrent.futures.TimeoutError as exc:
-            raise ChainReadTimeout(
-                f"chain read exceeded {timeout:.0f}s (testnet websocket hang guard)"
-            ) from exc
+        signal.signal(signal.SIGALRM, expire)
+        signal.setitimer(signal.ITIMER_REAL, duration)
+    except BaseException as exc:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        signal.setitimer(signal.ITIMER_REAL, *previous_timer)
+        raise timeout_error from exc
+    try:
+        return fn(*args, **kwargs)
+    except _DeadlineExpired as exc:
+        raise timeout_error from exc
     finally:
-        executor.shutdown(wait=False)
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        signal.setitimer(signal.ITIMER_REAL, *previous_timer)
 
 
 class _Substrate:
@@ -237,8 +293,21 @@ class _Substrate:
         )
 
     def read_back_weights(self, validator_uid: int) -> dict[str, Any] | None:
-        del validator_uid
-        return None
+        rows = bounded_call(self.subtensor.weights, netuid=self.netuid)
+        for uid, weights in rows:
+            if _to_int(uid) != validator_uid:
+                continue
+            return {
+                "validator_uid": validator_uid,
+                "weights_u16": [
+                    [_to_int(target_uid), _to_int(weight)]
+                    for target_uid, weight in weights
+                ],
+            }
+        return {
+            "validator_uid": validator_uid,
+            "weights_u16": [],
+        }
 
     def miner_endpoints(self, *, exclude_hotkey: str) -> list[dict[str, Any]]:
         metagraph = self.sync_metagraph()
@@ -377,7 +446,19 @@ class SubtensorChain:
         )
 
     def miner_endpoints(self) -> list[dict[str, Any]]:
-        return self.substrate.miner_endpoints(exclude_hotkey=self.substrate.validator_hotkey)
+        endpoints = self.substrate.miner_endpoints(
+            exclude_hotkey=self.substrate.validator_hotkey
+        )
+        if self.network != "test":
+            return endpoints
+        public: list[dict[str, Any]] = []
+        for endpoint in endpoints:
+            try:
+                host = require_public_ipv4(str(endpoint.get("host", "")))
+            except EndpointPolicyError:
+                continue
+            public.append({**endpoint, "host": host})
+        return public
 
     def apply_weights(
         self,
@@ -509,35 +590,55 @@ class SubtensorChain:
                 reason="extrinsics_not_allowed",
             )
 
+        # Publish this non-receipt artifact *before* crossing the signing seam. A
+        # SIGKILL or interpreter crash during set_weights still leaves an
+        # operator-visible indication that chain state must be reconciled.
+        attempt_path = self._write_attempt(
+            cfg,
+            epoch_id=epoch_id,
+            status="started",
+            spec_version=spec_version,
+            payload=payload,
+        )
+        submission: dict[str, Any] | None = None
         try:
             response = self.substrate.set_weights(
                 uids=payload["uids_emitted"],
                 weights=payload["weights_u16"],
                 version_key=spec_version,
             )
-        except Exception as exc:  # noqa: BLE001
-            receipt = self._write_receipt(
-                cfg,
-                epoch_id=epoch_id,
-                mode="error",
-                reason="extrinsic_failed",
-                weights=weights,
-                active_hotkeys=active_hotkeys,
-                spec_version=spec_version,
-                state=state,
-                mapping=mapping,
-                payload=payload,
-                submission=_submission_from_error(exc),
-            )
-            return ChainWeightResult(mode="error", receipt=receipt, reason="extrinsic_failed")
+            submission = _submission_from_response(response)
+            if not submission["success"]:
+                raise RuntimeError(
+                    str(submission.get("message") or "set_weights returned non-success")
+                )
 
-        submission = _submission_from_response(response)
-        if not submission["success"]:
+            submit_reason = (
+                "submitted_commit_reveal"
+                if state.get("commit_reveal_enabled") is True
+                else "submitted_ok"
+            )
+            read_back = self.substrate.read_back_weights(int(state["validator_uid"]))
+            if state.get("commit_reveal_enabled") is not True:
+                expected = [
+                    [int(uid), int(weight)]
+                    for uid, weight in zip(
+                        payload["uids_emitted"],
+                        payload["weights_u16"],
+                        strict=True,
+                    )
+                ]
+                if isinstance(read_back, dict) and "matches_submitted" in read_back:
+                    matches = bool(read_back["matches_submitted"])
+                else:
+                    matches = bool(read_back) and read_back.get("weights_u16") == expected
+                if not matches:
+                    raise RuntimeError("post-submit weight read-back mismatch")
             receipt = self._write_receipt(
                 cfg,
                 epoch_id=epoch_id,
-                mode="error",
-                reason="extrinsic_failed",
+                mode="submitted",
+                reason=submit_reason,
                 weights=weights,
                 active_hotkeys=active_hotkeys,
                 spec_version=spec_version,
@@ -545,30 +646,45 @@ class SubtensorChain:
                 mapping=mapping,
                 payload=payload,
                 submission=submission,
+                read_back=read_back,
             )
-            return ChainWeightResult(mode="error", receipt=receipt, reason="extrinsic_failed")
-
-        submit_reason = (
-            "submitted_commit_reveal"
-            if state.get("commit_reveal_enabled") is True
-            else "submitted_ok"
-        )
-        read_back = self.substrate.read_back_weights(int(state["validator_uid"]))
-        receipt = self._write_receipt(
-            cfg,
-            epoch_id=epoch_id,
-            mode="submitted",
-            reason=submit_reason,
-            weights=weights,
-            active_hotkeys=active_hotkeys,
-            spec_version=spec_version,
-            state=state,
-            mapping=mapping,
-            payload=payload,
-            submission=submission,
-            read_back=read_back,
-        )
-        return ChainWeightResult(mode="submitted", receipt=receipt, reason=submit_reason)
+            self._write_attempt(
+                cfg,
+                epoch_id=epoch_id,
+                status="completed",
+                spec_version=spec_version,
+                payload=payload,
+                submission=submission,
+                receipt_file=str(receipt["receipt_file"]),
+            )
+            return ChainWeightResult(
+                mode="submitted", receipt=receipt, reason=submit_reason
+            )
+        except BaseException as exc:
+            # Once set_weights has been invoked, even an SDK "failure" result
+            # is ambiguous: the extrinsic may have been broadcast or included
+            # before the client lost its response. Never turn this into a
+            # canonical error receipt, and never permit automatic resubmission.
+            error_submission = submission or _submission_from_error(exc)
+            try:
+                self._write_attempt(
+                    cfg,
+                    epoch_id=epoch_id,
+                    status="ambiguous",
+                    spec_version=spec_version,
+                    payload=payload,
+                    submission=error_submission,
+                    error_type=type(exc).__name__,
+                )
+            except BaseException:
+                # The durable "started" artifact remains the conservative
+                # source of truth if enriching it also fails.
+                pass
+            raise ChainAmbiguousSubmissionError(
+                f"live set_weights outcome is ambiguous for epoch {epoch_id}; "
+                f"reconcile {attempt_path} against chain before continuing",
+                attempt_path=attempt_path,
+            ) from exc
 
     def _readiness_state(self) -> dict[str, Any]:
         state = self.preflight()
@@ -674,13 +790,47 @@ class SubtensorChain:
         }
         if extra:
             receipt["extra"] = extra
-        path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        atomic_write_json(path, receipt)
         return {
             "receipt_file": receipt_name,
             "payload_digest": payload_digest,
             "netuid": self.netuid,
             "n_uids": len(payload["uids_emitted"]) if payload else 0,
         }
+
+    def _write_attempt(
+        self,
+        cfg: SubnetConfig,
+        *,
+        epoch_id: int,
+        status: str,
+        spec_version: int,
+        payload: dict[str, Any],
+        submission: dict[str, Any] | None = None,
+        receipt_file: str | None = None,
+        error_type: str | None = None,
+    ) -> os.PathLike[str]:
+        if status not in {"started", "ambiguous", "completed"}:
+            raise ValueError(f"unknown live attempt status: {status}")
+        path = cfg.epoch_dir(epoch_id) / f"chain_attempt_epoch_{epoch_id}.json"
+        atomic_write_json(
+            path,
+            {
+                "version": 1,
+                "epoch_id": epoch_id,
+                "mode": "live_attempt",
+                "status": status,
+                "network": self.network,
+                "netuid": self.netuid,
+                "spec_version": spec_version,
+                "payload_digest": payload.get("payload_digest"),
+                "payload": payload,
+                "submission": submission,
+                "receipt_file": receipt_file,
+                "error_type": error_type,
+            },
+        )
+        return path
 
     def _extrinsics_allowed(self) -> bool:
         return not self._missing_extrinsic_gates()

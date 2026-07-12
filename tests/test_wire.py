@@ -7,12 +7,39 @@ from dolores_subnet.wire import (
     DoloresTaskSynapse,
     parse_miner_endpoints,
     response_payload_size,
+    sign_response,
     wire_miner_from_response,
 )
+
+REQUEST_ID = "a" * 32
+
+
+def _signed_response(*, payloads, epoch_id=1, quota=1):
+    import bittensor as bt
+    from bittensor.core.synapse import TerminalInfo
+
+    validator = bt.Keypair.create_from_mnemonic(bt.Keypair.generate_mnemonic())
+    miner = bt.Keypair.create_from_mnemonic(bt.Keypair.generate_mnemonic())
+    response = DoloresTaskSynapse(
+        request_id=REQUEST_ID,
+        epoch_id=epoch_id,
+        quota=quota,
+        submissions=payloads,
+        dendrite=TerminalInfo(
+            status_code=200,
+            status_message="OK",
+            nonce=123456789,
+            uuid="request-uuid",
+            hotkey=validator.ss58_address,
+        ),
+    )
+    sign_response(response, miner)
+    return response, validator, miner
 
 
 def test_wire_synapse_round_trips_submissions() -> None:
     synapse = DoloresTaskSynapse(
+        request_id=REQUEST_ID,
         epoch_id=7,
         quota=2,
         submissions=[{"task_id": "task-a"}],
@@ -32,7 +59,12 @@ def test_wire_synapse_pydantic_json_round_trip_near_response_limit() -> None:
         payloads[0]["padding"] = payloads[0]["padding"][:-1024]
     assert response_payload_size(payloads) > MAX_RESPONSE_BYTES * 0.95
 
-    synapse = DoloresTaskSynapse(epoch_id=7, quota=1, submissions=payloads)
+    synapse = DoloresTaskSynapse(
+        request_id=REQUEST_ID,
+        epoch_id=7,
+        quota=1,
+        submissions=payloads,
+    )
     encoded = synapse.model_dump_json()
     recovered = DoloresTaskSynapse.model_validate_json(encoded)
 
@@ -58,19 +90,22 @@ def test_parse_miner_endpoints_rejects_bad_shape() -> None:
 
 
 def test_wire_response_size_cap_becomes_terminal_invalid() -> None:
-    endpoint = parse_miner_endpoints("127.0.0.1:8091:hotkey-a")[0]
-    response = DoloresTaskSynapse(
-        epoch_id=1,
-        quota=1,
-        submissions=[{"task_id": "too-large", "padding": "x" * (MAX_RESPONSE_BYTES + 1)}],
+    response, validator, miner_keypair = _signed_response(
+        payloads=[
+            {"task_id": "too-large", "padding": "x" * (MAX_RESPONSE_BYTES + 1)}
+        ],
     )
-    response.dendrite.status_code = 200
-    response.dendrite.status_message = "OK"
+    endpoint = parse_miner_endpoints(
+        f"127.0.0.1:8091:{miner_keypair.ss58_address}"
+    )[0]
 
     miner = wire_miner_from_response(
         endpoint=endpoint,
         response=response,
         quota=1,
+        expected_epoch_id=1,
+        expected_request_id=REQUEST_ID,
+        expected_validator_hotkey=validator.ss58_address,
         max_response_bytes=MAX_RESPONSE_BYTES,
     )
 
@@ -81,9 +116,19 @@ def test_wire_response_size_cap_becomes_terminal_invalid() -> None:
 
 def test_failed_wire_response_becomes_terminal_unreachable() -> None:
     endpoint = parse_miner_endpoints("127.0.0.1:8092:hotkey-b")[0]
-    response = DoloresTaskSynapse(error="Service unavailable at 127.0.0.1:8092")
+    response = DoloresTaskSynapse(
+        request_id=REQUEST_ID,
+        error="Service unavailable at 127.0.0.1:8092",
+    )
 
-    miner = wire_miner_from_response(endpoint=endpoint, response=response, quota=1)
+    miner = wire_miner_from_response(
+        endpoint=endpoint,
+        response=response,
+        quota=1,
+        expected_epoch_id=1,
+        expected_request_id=REQUEST_ID,
+        expected_validator_hotkey="validator-hotkey",
+    )
 
     assert miner.payloads == []
     assert miner.terminal_status == "unreachable"

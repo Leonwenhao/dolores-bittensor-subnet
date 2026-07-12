@@ -1,67 +1,51 @@
 # Roadmap
 
-Everything below that is not marked **done** is **planned** and not yet
-implemented. Current status is tracked in
-[`testnet-status.md`](testnet-status.md).
+The immediate objective is a safe, controlled cohort with one to three known
+HackerQuest miners on Bittensor public testnet netuid `523`.
 
-## Shipped
+## Implemented in `0.2.0rc1`
 
-- **Real solver-panel calibration mode.** The validator can optionally measure
-  gauntlet-surviving tasks against a panel of named frontier/open models
-  (Fireworks provider) and fold the measured difficulty into scoring, instead
-  of the default mock panel. Operator-gated (explicit spend opt-in +
-  budget cap + dry-run preview), cached by task hash, off by default. The
-  capability is merged; publishing "measured against `<models>`" claims waits
-  for an operator-approved real calibration run that produces artifacts.
-- **First public testnet weights.** Netuid 523 accepted the first public
-  `set_weights` submit on 2026-07-09 (`7520191-8`), and direct read-back
-  confirmed `Weights[523,0] = [(1, 65535)]`.
+- Exact subnet/engine version pin with a lightweight miner dependency boundary.
+- Installed `dolores-miner` and `dolores-validator` command surfaces.
+- `dolores-subnet-v1` package schema and canonical stable-hash verification.
+- Default Bittensor request verification, required body-hash fields, caller
+  allowlisting, and miner-signed response payloads.
+- Public IPv4 policy and exact metagraph publication read-back.
+- Core `parser_roundtrip` policy with miner author tests and a validator-private,
+  secret-keyed holdout.
+- Packaged, auto-built `dolores-verifier-pytest:0.2.0rc1` with non-root,
+  networkless, read-only, resource-limited execution.
+- Serialized recurring ticks with automatic epoch IDs, atomic state, exclusive
+  locking, crash recovery boundaries, metagraph discovery, and health output.
+- Full local tests for packaging, signed wire behavior, rejection cases,
+  holdout, Docker, and recurring state.
 
-## Near term — make the loop repeatable
+## Required before cohort launch
 
-The immediate path is narrow and sequential:
+1. Publish immutable public engine and subnet artifacts, hashes, and tag only
+   after explicit approval. No participant may depend on a local/private path.
+2. Receive and privately triage the pending security review; fix any blocking
+   finding and add public-safe regression tests.
+3. Rehearse the Ubuntu supervisor path from a clean public install.
+4. Bring up one non-first-party miner on a stable globally routable IPv4/port,
+   with exact netuid-523 metagraph read-back and signed reachability.
+5. Run two successful consecutive external-miner epochs with nonzero testnet
+   weight and replayable evidence.
 
-1. **Repo-native SDK reliability.** The first public submit used a direct async
-   substrate fallback because the repo SDK dry-run path hit testnet websocket
-   hangs. Make the repo-native path retry-aware and reliably receipt-writing.
-   *(planned)*
-2. **Small real solver-panel calibration.** Run an operator-approved,
-   budget-capped Fireworks calibration on one to three accepted tasks and publish
-   the sidecar artifact. *(planned)*
-3. **External cohort miners.** Have at least one non-first-party participant
-   serve an authored task package and earn nonzero weight on testnet. *(planned)*
-4. **On-chain miner discovery.** Publish miner axons via `serve_axon` so miners
-   are discoverable on-chain and show `ACTIVE`, instead of being served with
-   explicit endpoints handed to the validator. *(planned)*
-5. **Emission/incentive observation.** After further tempo boundaries, record
-   whether incentive/emission remain zero (fresh-testnet behavior) or begin to
-   accrue, and document the finding. *(planned)*
+The July 12 chain snapshot is stale/offline, so historical July 9 proof does
+not satisfy these launch gates.
 
-## Mid term — open the network
+## After cohort proof
 
-- **External miners.** Move from first-party miners to open registration.
-  *(planned)*
-- **Miner onboarding docs.** A clear guide for what a good task package looks
-  like and how submissions are scored, so third parties can contribute without
-  hand-holding. *(done for the initial cohort agent path)*
-- **Task-family coverage steering.** Incentive weighting that steers supply
-  toward under-covered task families instead of rewarding whatever is easiest to
-  produce. *(planned)*
-- **Verifier-quality leaderboard.** Public per-miner ranking by verified,
-  deduplicated, frontier-signaled contribution — the durable reputation surface.
-  *(planned)*
+- Expand supported task families only after each family has a validator-owned
+  holdout and explicit wrong-solution coverage.
+- Publish a public verifier-quality and accepted-task evidence surface.
+- Export the deduplicated archive in research-friendly formats.
+- Measure whether task scores predict downstream training value before making
+  any training-impact claim.
+- Consider broader registration only after endpoint stability, validator
+  recovery, and independent-miner evidence are routine.
 
-## Long term — vision
-
-- **Mainnet consideration.** Only after the testnet loop demonstrates
-  deterministic validation, live weights, and real external contributor
-  interest. Economics remain out of scope until then. *(planned)*
-- **Curriculum archive exports.** Publish the accepted-task archive in formats
-  usable outside crypto — Hugging Face datasets and `verifiers`-compatible
-  environment exports — so the curriculum is useful to any lab, not just to the
-  subnet. *(planned)*
-- **Score → training-value validation.** Run downstream training ablations to
-  test whether the validator's task score actually predicts training value. Until
-  this is done, scores claim *verifiability, novelty, and frontier signal* — not
-  proven training impact. Closing this gap is the most important long-term
-  research goal. *(planned)*
+Paid solver-panel calibration remains optional, off by default, and separate
+from cohort readiness. A future calibration must be explicitly approved,
+budget-capped, dry-run previewed, and supported by public-safe receipts.

@@ -10,8 +10,8 @@ the raw weights row (reported as "unavailable" on timeout). The network is
 forced through the repo allowlist — mainnet is refused before any call.
 
 Usage:
-    python scripts/testnet_status.py                # netuid 523, network test
-    python scripts/testnet_status.py --watch 20     # snapshot every 20 min
+    python scripts/testnet_status.py --network test --netuid 523
+    python scripts/testnet_status.py --network test --netuid 523 --watch 20
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from dolores_subnet.config import assert_safe_network  # noqa: E402
+from dolores_subnet.endpoints import require_cohort_target  # noqa: E402
 
 BTCLI = str(REPO_ROOT / ".venv" / "bin" / "btcli")
 SUBPROCESS_TIMEOUT = 120
@@ -197,16 +198,17 @@ def render_markdown(snap: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--netuid", type=int, default=523)
-    parser.add_argument("--network", default="test")
+    parser.add_argument("--netuid", type=int, required=True)
+    parser.add_argument("--network", required=True)
     parser.add_argument("--validator-uid", type=int, default=0)
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "work" / "testnet_status")
     parser.add_argument("--watch", type=int, default=None, help="poll every N minutes")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     network = assert_safe_network(args.network)
+    require_cohort_target(network, args.netuid)
     args.out.mkdir(parents=True, exist_ok=True)
 
     while True:

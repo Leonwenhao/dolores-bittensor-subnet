@@ -1,47 +1,64 @@
 # Contributing
 
-Dolores Autocurricula is an open subnet: the long-term goal is a network of
-independent task authors (miners) supplying verified training tasks, and
-independent validators scoring them. Contributions are welcome at three
-levels.
+Dolores is currently preparing a controlled public-testnet cohort, not an open
+production network. Contributions are welcome in code, task authoring, tests,
+and operational evidence.
 
-## 1. Run the local demo
+## Code contributions
 
-The fastest way to understand the system is to run the offline epoch demo —
-an honest miner, a duplicate-spammer, and an invalid miner scored end-to-end
-with no chain access. See [docs/demo.md](docs/demo.md).
+- Use Python 3.11.
+- Keep subnet and engine release candidates aligned at `0.2.0rc1`.
+- After the pinned engine release is public, install this checkout with
+  `python -m pip install -e ".[dev]"`; do not wire it to an adjacent/private
+  engine path.
+- Run `ruff check .` and `python -m pytest -q`.
+- Add regression coverage for security, state, protocol, and packaging changes.
+- Preserve the default Bittensor Axon verifier, response-payload signatures,
+  required body-hash fields, endpoint policy, and four independent live-weight
+  gates.
+- Keep public-testnet miner discovery metagraph-owned. Manual endpoints belong
+  only to explicit loopback/local test fixtures.
+- Keep generated or external task execution Docker-only and fail closed; never
+  fall back to host execution.
 
-## 2. Code contributions
+The validator Docker image is `dolores-verifier-pytest:0.2.0rc1`. Its Dockerfile
+is a packaged engine resource, and its runtime must remain non-root, networkless,
+read-only, capability-free, and resource-limited.
 
-- Python 3.11, `ruff` for linting, `pytest` for tests.
-- Install dev dependencies: `pip install -e ".[dev]"`.
-- Every PR must pass `ruff check .` and `python -m pytest -q`.
-- The chain layer (`src/dolores_subnet/chain.py`) is fail-closed by design:
-  the default is no chain access, dry-run never signs, and live submission
-  requires four independent explicit gates. PRs that weaken any gate, add a
-  default network write, or bypass the safety screen will not be merged.
-- Keep `src/dolores_subnet/chain.py` importable without `bittensor`
-  installed (`tests/test_import_discipline.py` enforces this).
+## Task contributions
 
-## 3. Task authoring (miners)
+The first cohort accepts only core `parser_roundtrip` tasks using the
+`escape_delim`, `error_contract`, or `quoted_fields` archetype. Start from the
+installed command:
 
-The subnet rewards the supply of verified tasks. A good task package:
+```bash
+dolores-miner init --output dolores-tasks --archetype quoted_fields --seed 17
+dolores-miner validate --task-dir <TASK_DIR>
+```
 
-- has hidden tests that a correct solution passes deterministically inside
-  the Docker verifier;
-- is killed by the wrong-solution probes (a task whose tests pass for a
-  wrong solution scores zero);
-- is not a near-duplicate of an existing archive entry (deduplication is
-  enforced);
-- sits near the capability frontier: strong reference solvers should
-  sometimes solve it, weak ones rarely.
+A useful task has deterministic author tests, a correct reference solution,
+meaningful wrong-solution coverage, safe paths and execution, and novel task
+content. Miner-supplied tests are **author tests**, not validator ground truth.
+The pinned engine's on-disk model retains the internal field name
+`hidden_tests`; the public `dolores-subnet-v1` wire format maps that content to
+`author_tests`. The validator-owned holdout remains private and is never part of
+a contribution.
 
-Miner onboarding docs for the public testnet subnet (netuid 523) are being
-expanded as the network opens up — watch
-[docs/roadmap.md](docs/roadmap.md) and open an issue if you want to run a
-miner early.
+Do not submit the intentionally duplicate or invalid examples as cohort work.
+See [`examples/tasks/README.md`](examples/tasks/README.md) for their purpose and
+[`docs/hackerquest-miner-quickstart.md`](docs/hackerquest-miner-quickstart.md)
+for the approved public-artifact onboarding path once releases are published.
 
-## Questions
+## Chain and provider safety
 
-Open a GitHub issue. For security-sensitive reports see
-[SECURITY.md](SECURITY.md).
+Pull requests and local tests must not register wallets, publish axons, submit
+weights, transfer funds, contact participants, or make paid provider calls.
+Every authorized chain command must explicitly include
+`--network test --netuid 523`. Paid solver calibration stays off unless a separately approved,
+budget-capped run supplies every spend gate.
+
+## Security reports
+
+Do not post exploit details in a public issue. Follow [`SECURITY.md`](SECURITY.md).
+The controlled cohort remains blocked until the pending private report is
+received and triaged against the release candidate.

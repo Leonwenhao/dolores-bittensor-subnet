@@ -19,7 +19,7 @@ class FakeMiner:
         del epoch_id
         return [
             {
-                "schema_version": "dolores-subnet-v0",
+                "schema_version": "dolores-subnet-v1",
                 "task_id": f"{self.hotkey}-{index}",
                 "package_hash": f"{self.hotkey}-{index}",
                 "package": {},

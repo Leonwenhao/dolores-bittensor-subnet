@@ -23,7 +23,7 @@
       "task_type": "multi_file_bugfix"
     },
     "domain": "bugfix_repo",
-    "hidden_tests": {
+    "author_tests": {
       "tests/test_hidden.py": "from order_desk.api import gather\nfrom order_desk.basket import fill\n\n\ndef test_repeated_gathers_stay_isolated():\n    for _ in range(5):\n        assert gather([\"pick\"]) == [\"PICK\"]\n\n\ndef test_explicit_basket_is_extended():\n    seed = [\"SHIP\"]\n    assert fill([\"pick\"], seed) == [\"SHIP\", \"PICK\"]\n\n\ndef test_explicit_basket_does_not_touch_default():\n    fill([\"pack\"], [\"PICK\"])\n    assert gather([\"ship\"]) == [\"SHIP\"]\n\n\ndef test_whitespace_is_trimmed():\n    assert gather([\"  pick  \"]) == [\"PICK\"]\n"
     },
     "lineage": {
@@ -55,6 +55,6 @@
     "title": "Stop cross-call leakage in the warehouse order desk"
   },
   "package_hash": "22210a02e6e8dc8f01c40bd764c2ed631fa933e23bbecc43aeabe262103d896f",
-  "schema_version": "dolores-subnet-v0",
+  "schema_version": "dolores-subnet-v1",
   "task_id": "harder_v3_example_multi_file_bugfix"
 }

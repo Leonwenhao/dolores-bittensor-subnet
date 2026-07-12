@@ -6,8 +6,11 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from dolores_subnet.chain import (
     LIVE_CONFIRMATION,
+    ChainAmbiguousSubmissionError,
     NullChain,
     SubtensorChain,
     _submission_from_response,
@@ -31,6 +34,9 @@ class FakeSubstrate:
         commit_reveal: bool | None = False,
         commit_reveal_error: Exception | None = None,
         set_success: bool = True,
+        set_error: Exception | None = None,
+        read_back_error: Exception | None = None,
+        read_back_matches: bool = True,
     ) -> None:
         self.hotkey_uids = hotkey_uids or {
             self.validator_hotkey: 10,
@@ -44,6 +50,9 @@ class FakeSubstrate:
         self.commit_reveal = commit_reveal
         self.commit_reveal_error = commit_reveal_error
         self.set_success = set_success
+        self.set_error = set_error
+        self.read_back_error = read_back_error
+        self.read_back_matches = read_back_matches
         self.set_weights_calls: list[dict[str, Any]] = []
 
     def block(self) -> int:
@@ -87,6 +96,8 @@ class FakeSubstrate:
     ) -> dict[str, Any]:
         call = {"uids": uids, "weights": weights, "version_key": version_key}
         self.set_weights_calls.append(call)
+        if self.set_error is not None:
+            raise self.set_error
         return {
             "success": self.set_success,
             "message": "ok" if self.set_success else "boom",
@@ -97,7 +108,12 @@ class FakeSubstrate:
         }
 
     def read_back_weights(self, validator_uid: int) -> dict[str, Any]:
-        return {"validator_uid": validator_uid, "matches_submitted": True}
+        if self.read_back_error is not None:
+            raise self.read_back_error
+        return {
+            "validator_uid": validator_uid,
+            "matches_submitted": self.read_back_matches,
+        }
 
 
 @dataclass
@@ -110,7 +126,7 @@ class FakeMiner:
         del epoch_id
         return [
             {
-                "schema_version": "dolores-subnet-v0",
+                "schema_version": "dolores-subnet-v1",
                 "task_id": f"{self.hotkey}-{index}",
                 "package_hash": f"{self.hotkey}-{index}",
                 "package": {},
@@ -400,6 +416,11 @@ def test_live_gates_block_set_weights_until_all_layers_are_present(tmp_path, mon
     assert live.mode == "submitted"
     assert live.reason == "submitted_ok"
     assert len(fake.set_weights_calls) == 1
+    attempt = json.loads(
+        (cfg_live.epoch_dir(1) / "chain_attempt_epoch_1.json").read_text(encoding="utf-8")
+    )
+    assert attempt["status"] == "completed"
+    assert attempt["receipt_file"] == "chain_receipt_epoch_1.json"
 
 
 def test_allow_commit_reveal_submits_with_explicit_reason(tmp_path, monkeypatch) -> None:
@@ -435,31 +456,77 @@ def test_allow_commit_reveal_submits_with_explicit_reason(tmp_path, monkeypatch)
     assert receipt["submission"]["success"] is True
 
 
-def test_live_extrinsic_failure_is_recorded_with_fake_substrate(tmp_path, monkeypatch) -> None:
+def test_live_extrinsic_non_success_is_ambiguous_without_receipt(tmp_path, monkeypatch) -> None:
     fake = FakeSubstrate(set_success=False)
     cfg = _cfg(tmp_path)
     monkeypatch.setenv("DOLORES_ALLOW_EXTRINSICS", "1")
 
-    result = SubtensorChain(
-        network="test",
-        netuid=7,
-        wallet_name="dolores-test",
-        wallet_hotkey="validator",
-        publish="live",
-        allow_extrinsics=True,
-        confirmation=LIVE_CONFIRMATION,
-        substrate=fake,
-    ).apply_weights(
-        cfg=cfg,
-        epoch_id=1,
-        weights={"miner-a": 1.0},
-        active_hotkeys=["miner-a"],
-        spec_version=cfg.spec_version,
-    )
+    with pytest.raises(ChainAmbiguousSubmissionError, match="outcome is ambiguous"):
+        SubtensorChain(
+            network="test",
+            netuid=7,
+            wallet_name="dolores-test",
+            wallet_hotkey="validator",
+            publish="live",
+            allow_extrinsics=True,
+            confirmation=LIVE_CONFIRMATION,
+            substrate=fake,
+        ).apply_weights(
+            cfg=cfg,
+            epoch_id=1,
+            weights={"miner-a": 1.0},
+            active_hotkeys=["miner-a"],
+            spec_version=cfg.spec_version,
+        )
 
-    assert result.mode == "error"
-    assert result.reason == "extrinsic_failed"
     assert len(fake.set_weights_calls) == 1
+    assert not (cfg.epoch_dir(1) / "chain_receipt_epoch_1.json").exists()
+    attempt = json.loads(
+        (cfg.epoch_dir(1) / "chain_attempt_epoch_1.json").read_text(encoding="utf-8")
+    )
+    assert attempt["status"] == "ambiguous"
+    assert attempt["submission"]["success"] is False
+
+
+@pytest.mark.parametrize(
+    ("fake", "error_type"),
+    [
+        (FakeSubstrate(set_error=TimeoutError("submit timeout")), "TimeoutError"),
+        (FakeSubstrate(read_back_error=TimeoutError("readback timeout")), "TimeoutError"),
+        (FakeSubstrate(read_back_matches=False), "RuntimeError"),
+    ],
+)
+def test_any_exception_after_live_attempt_is_ambiguous(
+    tmp_path,
+    monkeypatch,
+    fake,
+    error_type,
+) -> None:
+    cfg = _cfg(tmp_path)
+    monkeypatch.setenv("DOLORES_ALLOW_EXTRINSICS", "1")
+
+    with pytest.raises(ChainAmbiguousSubmissionError):
+        _apply(
+            SubtensorChain(
+                network="test",
+                netuid=7,
+                wallet_name="dolores-test",
+                wallet_hotkey="validator",
+                publish="live",
+                allow_extrinsics=True,
+                confirmation=LIVE_CONFIRMATION,
+                substrate=fake,
+            ),
+            cfg,
+            weights={"miner-a": 1.0},
+        )
+
+    assert len(fake.set_weights_calls) == 1
+    attempt = json.loads(
+        (cfg.epoch_dir(1) / "chain_attempt_epoch_1.json").read_text(encoding="utf-8")
+    )
+    assert attempt["status"] == "ambiguous"
+    assert attempt["error_type"] == error_type
 
 
 def test_submission_from_response_reads_extrinsic_receipt_metadata() -> None:

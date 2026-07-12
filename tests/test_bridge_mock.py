@@ -67,6 +67,31 @@ def test_reserved_wire_error_key_is_invalid_not_infra_error(tmp_path, monkeypatc
     assert outcome.task_value == 0.0
 
 
+def test_cohort_holdout_rejects_unsupported_family_before_pipeline(
+    tmp_path, monkeypatch
+) -> None:
+    from dolores.proposer.families import propose_family
+
+    task = propose_family("algorithmic_optimization", count=1, seed=1)[0]
+    cfg = SubnetConfig.from_env(
+        mode="wire",
+        work_dir=tmp_path,
+        holdout_secret="local-test-secret",
+    )
+
+    def forbidden_pipeline(*args, **kwargs):
+        del args, kwargs
+        raise AssertionError("unsupported family must not execute")
+
+    monkeypatch.setattr(bridge, "run_task_pipeline", forbidden_pipeline)
+    outcome = bridge.validate_submission(to_wire(task), cfg, context=GateContext())
+
+    assert outcome.status == "rejected"
+    assert outcome.task_value == 0.0
+    assert outcome.holdout_summary["status"] == "unsupported"
+    assert outcome.reason.startswith("holdout:unsupported:")
+
+
 def test_safety_rejection_is_not_purged(tmp_path, monkeypatch) -> None:
     from dolores.archive.db import ArchiveDB
     from dolores.schemas.result import SafetyFinding

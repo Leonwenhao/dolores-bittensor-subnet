@@ -1,20 +1,30 @@
 [project]
 name = "dolores-bittensor-subnet"
-version = "0.1.0"
+version = "0.2.0rc1"
 description = "Bittensor testnet subnet scaffold for Dolores Autocurricula task supply."
 readme = "README.md"
-requires-python = ">=3.11,<3.15"
+requires-python = ">=3.11,<3.12"
 dependencies = [
-    "bittensor>=10.5,<11",
+    "bittensor==10.5.0",
+    "bittensor-cli==9.23.1",
+    "dolores-autocurricula==0.2.0rc1",
     "pydantic>=2.7",
     "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
+validator = [
+    "dolores-autocurricula[validator]==0.2.0rc1",
+]
 dev = [
+    "dolores-autocurricula[validator]==0.2.0rc1",
     "pytest>=8",
     "ruff>=0.6",
 ]
+
+[project.scripts]
+dolores-miner = "dolores_subnet.miner_cli:main"
+dolores-validator = "dolores_subnet.validator_cli:main"
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]
@@ -22,6 +32,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+dolores_subnet = ["_assets/configs/*.yaml"]
 
 [tool.ruff]
 line-length = 100
@@ -32,4 +45,4 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]

@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DOLORES_REPO = REPO_ROOT.parent / "Dolores Autocurricula"
+PACKAGE_ROOT = Path(__file__).resolve().parent
+PACKAGED_MOCK_PANEL_PATH = PACKAGE_ROOT / "_assets" / "configs" / "solver_panel.mock.yaml"
+PACKAGED_CALIBRATE_PANEL_PATH = (
+    PACKAGE_ROOT / "_assets" / "configs" / "solver_panel.calibrate.yaml"
+)
 
 SPEC_VERSION = 1
-SCHEMA_VERSION = "dolores-subnet-v0"
+SCHEMA_VERSION = "dolores-subnet-v1"
 
 MAX_PACKAGE_BYTES = 200 * 1024
 MAX_RESPONSE_BYTES = 1024 * 1024
@@ -23,7 +27,7 @@ UNSEEN_PRUNE_EPOCHS = 20
 WEIGHTS_RATE_LIMIT_BLOCKS = 100
 TEMPO_BLOCKS = 360
 
-DEFAULT_VERIFIER_IMAGE = "dolores-verifier-pytest:0.1.0"
+DEFAULT_VERIFIER_IMAGE = "dolores-verifier-pytest:0.2.0rc1"
 DEFAULT_WALLET_NAME = "dolores-test"
 DEFAULT_WALLET_HOTKEY = "validator"
 DEFAULT_AXON_PORTS = (8091, 8092)
@@ -173,12 +177,11 @@ class SubnetConfig:
 
     mode: Mode = Mode.MOCK
     repo_root: Path = REPO_ROOT
-    dolores_repo: Path = DEFAULT_DOLORES_REPO
     work_dir: Path = REPO_ROOT / "work"
     archive_dir: Path = REPO_ROOT / "work" / "subnet_archive"
     archive_db: Path = REPO_ROOT / "work" / "subnet_archive" / "archive.duckdb"
     submissions_path: Path = REPO_ROOT / "work" / "subnet_archive" / "submissions.jsonl"
-    panel_path: Path = REPO_ROOT / "configs" / "solver_panel.mock.yaml"
+    panel_path: Path = PACKAGED_MOCK_PANEL_PATH
     verifier_image: str = DEFAULT_VERIFIER_IMAGE
     backend: str = "local"
     pipeline_mode: str = "fixture"
@@ -195,10 +198,12 @@ class SubnetConfig:
     wallet_hotkey: str = DEFAULT_WALLET_HOTKEY
     allow_commit_reveal: bool = False
     panel_mode: str = "mock"
-    panel_calibrate_path: Path = REPO_ROOT / "configs" / "solver_panel.calibrate.yaml"
+    panel_calibrate_path: Path = PACKAGED_CALIBRATE_PANEL_PATH
     panel_max_tasks: int = 8
     panel_dry_run: bool = False
     allow_provider_spend: bool = False
+    holdout_required: bool = False
+    holdout_secret: str | None = field(default=None, repr=False)
 
     @classmethod
     def from_env(
@@ -215,6 +220,8 @@ class SubnetConfig:
         panel_max_tasks: int | str | None = None,
         panel_dry_run: bool | None = None,
         allow_provider_spend: bool | None = None,
+        holdout_required: bool | None = None,
+        holdout_secret: str | None = None,
     ) -> SubnetConfig:
         parsed_mode = parse_mode(mode or os.environ.get("DOLORES_SUBNET_MODE"))
         backend, pipeline_mode = verifier_defaults(parsed_mode)
@@ -257,15 +264,12 @@ class SubnetConfig:
         return cls(
             mode=parsed_mode,
             repo_root=root,
-            dolores_repo=Path(
-                os.environ.get("DOLORES_REPO", str(DEFAULT_DOLORES_REPO))
-            ).expanduser(),
             work_dir=resolved_work,
             archive_dir=archive_dir,
             archive_db=archive_dir / "archive.duckdb",
             submissions_path=archive_dir / "submissions.jsonl",
             panel_path=Path(
-                os.environ.get("DOLORES_SUBNET_PANEL", str(root / "configs/solver_panel.mock.yaml"))
+                os.environ.get("DOLORES_SUBNET_PANEL", str(PACKAGED_MOCK_PANEL_PATH))
             ).expanduser(),
             verifier_image=os.environ.get("DOLORES_VERIFIER_IMAGE", DEFAULT_VERIFIER_IMAGE),
             backend=backend,
@@ -281,12 +285,22 @@ class SubnetConfig:
             panel_calibrate_path=Path(
                 os.environ.get(
                     "DOLORES_SUBNET_PANEL_CALIBRATE",
-                    str(root / "configs/solver_panel.calibrate.yaml"),
+                    str(PACKAGED_CALIBRATE_PANEL_PATH),
                 )
             ).expanduser(),
             panel_max_tasks=resolved_panel_max_tasks,
             panel_dry_run=resolved_panel_dry_run,
             allow_provider_spend=bool(allow_provider_spend),
+            holdout_required=(
+                parsed_mode in {Mode.WIRE, Mode.LOCALNET, Mode.TESTNET}
+                if holdout_required is None
+                else bool(holdout_required)
+            ),
+            holdout_secret=(
+                holdout_secret
+                if holdout_secret is not None
+                else os.environ.get("DOLORES_HOLDOUT_SECRET")
+            ),
         )
 
     def epoch_dir(self, epoch_id: int) -> Path:

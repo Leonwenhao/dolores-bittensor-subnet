@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import os
+import signal
+import subprocess
+import sys
+import threading
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -67,6 +73,95 @@ def test_bounded_call_passes_through_results_and_errors() -> None:
         bounded_call(lambda: (_ for _ in ()).throw(ValueError("boom")), timeout=1.0)
 
 
+def test_bounded_call_timeout_does_not_delay_one_shot_process_exit() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    code = """
+import time
+from dolores_subnet.chain import ChainReadTimeout, bounded_call
+try:
+    bounded_call(time.sleep, 30, timeout=0.05)
+except ChainReadTimeout:
+    print("timed_out")
+"""
+    started = time.monotonic()
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=repo_root,
+        env={**os.environ, "PYTHONPATH": "src"},
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=5,
+    )
+
+    assert completed.stdout.strip() == "timed_out"
+    assert time.monotonic() - started < 3
+
+
+def test_bounded_call_restores_prior_signal_handler() -> None:
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    previous_timer = signal.getitimer(signal.ITIMER_REAL)
+    if previous_timer[0] > 0 or previous_timer[1] > 0:
+        pytest.skip("test runner already owns ITIMER_REAL")
+
+    def prior_handler(signum, frame):  # noqa: ANN001
+        del signum, frame
+
+    signal.signal(signal.SIGALRM, prior_handler)
+    try:
+        assert bounded_call(lambda: 42, timeout=1.0) == 42
+        assert signal.getsignal(signal.SIGALRM) is prior_handler
+        assert signal.getitimer(signal.ITIMER_REAL) == pytest.approx((0.0, 0.0))
+        with pytest.raises(ChainReadTimeout):
+            bounded_call(time.sleep, 1, timeout=0.05)
+        assert signal.getsignal(signal.SIGALRM) is prior_handler
+        assert signal.getitimer(signal.ITIMER_REAL) == pytest.approx((0.0, 0.0))
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        signal.setitimer(signal.ITIMER_REAL, *previous_timer)
+
+
+def test_nested_bounded_call_fails_closed_and_restores_outer_alarm() -> None:
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    previous_timer = signal.getitimer(signal.ITIMER_REAL)
+    if previous_timer[0] > 0 or previous_timer[1] > 0:
+        pytest.skip("test runner already owns ITIMER_REAL")
+
+    def nested() -> None:
+        bounded_call(lambda: None, timeout=0.5)
+
+    with pytest.raises(ChainReadTimeout, match="SIGALRM timer is active"):
+        bounded_call(nested, timeout=1.0)
+    assert signal.getsignal(signal.SIGALRM) == previous_handler
+    assert signal.getitimer(signal.ITIMER_REAL) == pytest.approx(previous_timer)
+
+
+def test_bounded_call_non_main_thread_fails_closed_without_calling_target() -> None:
+    called = False
+    errors: list[BaseException] = []
+
+    def target() -> None:
+        nonlocal called
+        called = True
+
+    def worker() -> None:
+        try:
+            bounded_call(target, timeout=1.0)
+        except BaseException as exc:  # noqa: BLE001 - capture thread assertion evidence.
+            errors.append(exc)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    thread.join(timeout=1)
+
+    assert not thread.is_alive()
+    assert called is False
+    assert len(errors) == 1
+    assert isinstance(errors[0], ChainReadTimeout)
+    assert "main thread" in str(errors[0])
+
+
 def test_miner_publish_off_by_default(capsys) -> None:
     from neurons.miner import _publish_axon
 
@@ -87,4 +182,21 @@ def test_miner_publish_refuses_unsafe_network() -> None:
         external_ip="10.0.0.5", external_port=8091, host="0.0.0.0", port=8091,
     )
     with pytest.raises(NetworkSafetyError):
+        _publish_axon(args, axon=object())
+
+
+def test_miner_publish_refuses_lan_address_before_bittensor_call() -> None:
+    from dolores_subnet.endpoints import EndpointPolicyError
+    from neurons.miner import _publish_axon
+
+    args = SimpleNamespace(
+        publish=True,
+        netuid=523,
+        network="test",
+        external_ip="192.168.1.50",
+        external_port=8091,
+        host="0.0.0.0",
+        port=8091,
+    )
+    with pytest.raises(EndpointPolicyError):
         _publish_axon(args, axon=object())

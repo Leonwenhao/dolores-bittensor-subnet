@@ -26,7 +26,7 @@
       "task_type": "parser_roundtrip"
     },
     "domain": "python_function",
-    "hidden_tests": {
+    "author_tests": {
       "tests/test_hidden.py": "from hypothesis import given, settings\nfrom hypothesis import strategies as st\n\nfrom ledger_quo_comma_dollar import format_record, parse_record\n\nALPHABET = \"ab01,$\"\n\n\ndef test_empty_field_round_trips():\n    fields = [\"\", \"debit\", \"\"]\n    assert parse_record(format_record(fields)) == fields\n\n\ndef test_quote_only_field_round_trips():\n    fields = [\"$$\", \"credit\"]\n    assert parse_record(format_record(fields)) == fields\n\n\ndef test_adjacent_specials_round_trip():\n    fields = [\",$,\", \"balance\"]\n    assert parse_record(format_record(fields)) == fields\n\n\n@settings(derandomize=True, database=None, max_examples=50)\n@given(st.lists(st.text(alphabet=ALPHABET, max_size=6), min_size=1, max_size=5))\ndef test_round_trip_property(fields):\n    assert parse_record(format_record(fields)) == fields\n"
     },
     "lineage": {
@@ -52,6 +52,6 @@
     "title": "Quote-aware codec for the accounts ledger"
   },
   "package_hash": "oversize",
-  "schema_version": "dolores-subnet-v0",
+  "schema_version": "dolores-subnet-v1",
   "task_id": "bad_oversize"
 }

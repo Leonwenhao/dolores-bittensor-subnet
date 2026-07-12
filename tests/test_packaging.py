@@ -21,8 +21,11 @@ def generated_tasks(count: int = 3):
 def test_generated_tasks_round_trip_through_wire() -> None:
     tasks = generated_tasks()
     for task in tasks:
-        recovered = from_wire(to_wire(task))
+        wire = to_wire(task)
+        recovered = from_wire(wire)
         assert recovered.stable_hash() == task.stable_hash()
+        assert "author_tests" in wire["package"]
+        assert "hidden_tests" not in wire["package"]
 
 
 def test_materialize_writes_dolores_task_yaml(tmp_path) -> None:
@@ -81,6 +84,20 @@ def test_malformed_payloads_have_distinct_reason_codes() -> None:
     with pytest.raises(WireError) as ref_exc:
         from_wire(empty_reference)
     assert ref_exc.value.reason == "parse_execution_material"
+
+    legacy_hidden = copy.deepcopy(payload)
+    legacy_hidden["package"]["hidden_tests"] = legacy_hidden["package"].pop(
+        "author_tests"
+    )
+    with pytest.raises(WireError) as hidden_exc:
+        from_wire(legacy_hidden)
+    assert hidden_exc.value.reason == "parse_execution_material"
+
+    missing_author_tests = copy.deepcopy(payload)
+    missing_author_tests["package"].pop("author_tests")
+    with pytest.raises(WireError) as author_exc:
+        from_wire(missing_author_tests)
+    assert author_exc.value.reason == "parse_execution_material"
 
 
 def test_cross_process_stable_hash_is_identical() -> None:

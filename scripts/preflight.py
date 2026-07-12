@@ -21,13 +21,15 @@ if str(SRC_ROOT) not in sys.path:
 
 from dolores_subnet.config import (  # noqa: E402
     DEFAULT_AXON_PORTS,
-    DEFAULT_VERIFIER_IMAGE,
+    LOCALNET_ALT_NETWORK,
+    LOCALNET_NETWORK,
     Mode,
     NetworkSafetyError,
     SubnetConfig,
     assert_safe_network,
     parse_mode,
 )
+from dolores_subnet.endpoints import require_cohort_target  # noqa: E402
 
 CheckFn = Callable[[], tuple[str, str]]
 
@@ -63,7 +65,7 @@ def python_version_check() -> tuple[str, str]:
     version = sys.version_info
     detail = f"{version.major}.{version.minor}.{version.micro}"
     if (version.major, version.minor) != (3, 11):
-        return result("FAIL", f"{detail}; expected Python 3.11")
+        return result("FAIL", f"{detail}; expected Python 3.11.x")
     return result("PASS", detail)
 
 
@@ -71,8 +73,10 @@ def import_dolores_check() -> tuple[str, str]:
     try:
         dolores = importlib.import_module("dolores")
     except Exception as exc:  # noqa: BLE001
-        return result("FAIL", f"{exc}; install with: .venv/bin/pip install \"$DOLORES\"")
+        return result("FAIL", f"{exc}; install dolores-autocurricula[validator]==0.2.0rc1")
     version = getattr(dolores, "__version__", "unknown")
+    if version != "0.2.0rc1":
+        return result("FAIL", f"dolores {version}; expected pinned 0.2.0rc1")
     return result("PASS", f"dolores {version}")
 
 
@@ -85,8 +89,8 @@ def import_bittensor_check() -> tuple[str, str]:
             f"{exc}; install project deps with: .venv/bin/pip install -e \".[dev]\"",
         )
     version = getattr(bittensor, "__version__", "unknown")
-    if not str(version).startswith("10."):
-        return result("FAIL", f"bittensor {version}; expected 10.x")
+    if str(version) != "10.5.0":
+        return result("FAIL", f"bittensor {version}; expected pinned 10.5.0")
     return result("PASS", f"bittensor {version}")
 
 
@@ -149,33 +153,30 @@ def docker_image_check(image: str) -> tuple[str, str]:
             tag, _, image_id = line.partition(" ")
             if tag == image and image_id:
                 return result("PASS", f"{image} {image_id} (listed; inspect-by-tag unavailable)")
-        build = (
-            "cd \"$DOLORES\" && docker build -f docker/verifier/Dockerfile "
-            f"-t {DEFAULT_VERIFIER_IMAGE} ."
-        )
+        build = "rerun the validator; the pinned engine auto-builds its packaged verifier image"
         return result("FAIL", f"image {image} missing; build with: {build}")
     image_id = completed.stdout.strip()
     return result("PASS", f"{image} {image_id[:19]}")
 
 
-def dolores_install_freshness_check(cfg: SubnetConfig) -> tuple[str, str]:
+def dolores_release_asset_check() -> tuple[str, str]:
     try:
-        dolores = importlib.import_module("dolores")
-        installed_at = Path(dolores.__file__ or "").stat().st_mtime
-    except Exception as exc:  # noqa: BLE001
-        return result("FAIL", f"cannot inspect installed dolores: {exc}")
+        from dolores.verifier.docker_runner import _dockerfile_path
 
-    completed = run_command(["git", "-C", str(cfg.dolores_repo), "log", "-1", "--format=%ct"])
-    if completed.returncode != 0:
-        return result("PASS", "Dolores install present; source git timestamp unavailable")
-    source_at = float(completed.stdout.strip())
-    if installed_at + 1 < source_at:
-        reinstall = (
-            ".venv/bin/pip install --no-deps --force-reinstall "
-            f"{json.dumps(str(cfg.dolores_repo))}"
-        )
-        return result("PASS", f"WARNING installed package may be stale; run: {reinstall}")
-    return result("PASS", "installed package is not older than source HEAD")
+        dockerfile = _dockerfile_path()
+    except Exception as exc:  # noqa: BLE001
+        return result("FAIL", f"cannot resolve packaged verifier asset: {exc}")
+    if not dockerfile.is_file():
+        return result("FAIL", f"packaged verifier Dockerfile missing: {dockerfile}")
+    return result("PASS", f"packaged verifier asset={dockerfile}")
+
+
+def holdout_secret_check(cfg: SubnetConfig) -> tuple[str, str]:
+    if not cfg.holdout_required:
+        return result("SKIP", f"{cfg.mode.value} mode does not require cohort holdout")
+    if not cfg.holdout_secret:
+        return result("FAIL", "DOLORES_HOLDOUT_SECRET is required (value not displayed)")
+    return result("PASS", "validator holdout secret is configured (value not displayed)")
 
 
 def ports_check(ports: tuple[int, ...] = DEFAULT_AXON_PORTS) -> tuple[str, str]:
@@ -302,7 +303,8 @@ def build_checks(cfg: SubnetConfig) -> list[Check]:
                 Check("verifier image", lambda: result("SKIP", "mock mode")),
             ]
         )
-    checks.append(Check("dolores install freshness", lambda: dolores_install_freshness_check(cfg)))
+    checks.append(Check("dolores release asset", dolores_release_asset_check))
+    checks.append(Check("validator holdout secret", lambda: holdout_secret_check(cfg)))
     if cfg.mode in {Mode.WIRE, Mode.LOCALNET, Mode.TESTNET}:
         checks.append(Check("axon ports", ports_check))
         checks.append(Check("wallet existence", lambda: wallet_exists_check(cfg)))
@@ -349,12 +351,44 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def validate_explicit_chain_target(
+    mode: Mode,
+    *,
+    network: str | None,
+    netuid: int | None,
+) -> None:
+    """Reject implicit or mode-mismatched targets before config or SDK work."""
+
+    if mode is Mode.TESTNET:
+        if network is None or netuid is None:
+            raise ValueError(
+                "testnet preflight requires explicit --network test --netuid 523"
+            )
+        require_cohort_target(network, netuid)
+        return
+    if mode is not Mode.LOCALNET:
+        return
+    if network is None or netuid is None:
+        raise ValueError("localnet preflight requires explicit --network and --netuid")
+    allowed = {LOCALNET_NETWORK, LOCALNET_ALT_NETWORK}
+    if network not in allowed:
+        choices = ", ".join(sorted(allowed))
+        raise ValueError(
+            f"localnet preflight requires a loopback Subtensor network ({choices}); "
+            "public network test is forbidden"
+        )
+    if netuid < 0:
+        raise ValueError("localnet preflight netuid must be non-negative")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    mode = parse_mode(args.mode)
+    validate_explicit_chain_target(mode, network=args.network, netuid=args.netuid)
     wallet_name = args.wallet_name or args.wallet_name_alias
     wallet_hotkey = args.wallet_hotkey or args.wallet_hotkey_alias
     cfg = SubnetConfig.from_env(
-        mode=parse_mode(args.mode),
+        mode=mode,
         work_dir=args.work,
         wallet_name=wallet_name,
         wallet_hotkey=wallet_hotkey,

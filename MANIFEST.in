@@ -1,0 +1,16 @@
+include LICENSE
+include README.md
+include SECURITY.md
+include deploy/systemd/dolores-miner.service
+include deploy/systemd/dolores-validator.service
+include deploy/systemd/dolores-validator.timer
+include docs/architecture.md
+include docs/cohort-release-checklist.md
+include docs/demo.md
+include docs/external-miner-evidence-template.md
+include docs/hackerquest-miner-quickstart.md
+include docs/roadmap.md
+include docs/security-disclosure-packet.md
+include docs/testnet-status.md
+include docs/validator-operations.md
+recursive-include docs/decisions *.md

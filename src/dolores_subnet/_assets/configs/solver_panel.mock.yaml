@@ -1,0 +1,23 @@
+panel_id: software_v0_2026_07_local
+solvers:
+  - id: weak_mock
+    provider: mock
+    model: mock/weak
+    temperature: 0.0
+    max_tokens: 0
+    attempts: 1
+    strategy: difficulty_profile
+  - id: mid_mock
+    provider: mock
+    model: mock/mid
+    temperature: 0.0
+    max_tokens: 0
+    attempts: 1
+    strategy: difficulty_profile
+  - id: strong_mock
+    provider: mock
+    model: mock/strong
+    temperature: 0.0
+    max_tokens: 0
+    attempts: 1
+    strategy: difficulty_profile

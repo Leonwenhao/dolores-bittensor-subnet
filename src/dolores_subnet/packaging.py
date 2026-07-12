@@ -12,6 +12,9 @@ from pydantic import ValidationError
 from dolores_subnet.config import MAX_PACKAGE_BYTES, SCHEMA_VERSION
 from dolores_subnet.protocol import WireSubmission, canonical_json
 
+AUTHOR_TESTS_KEY = "author_tests"
+LEGACY_HIDDEN_TESTS_KEY = "hidden_tests"
+
 
 @dataclass(frozen=True)
 class WireError(ValueError):
@@ -33,15 +36,17 @@ def wire_size_ok(payload: dict[str, Any], *, max_bytes: int = MAX_PACKAGE_BYTES)
 
 
 def to_wire(task: Any, *, max_bytes: int = MAX_PACKAGE_BYTES) -> dict[str, Any]:
-    """Convert a Dolores TaskPackage into the v0 wire-submission dict."""
+    """Convert a Dolores TaskPackage into the cohort wire-submission dict."""
 
     family = _family(task)
     declared_difficulty = getattr(task.descriptors, "estimated_difficulty", "")
+    package = task.canonical_dict()
+    package[AUTHOR_TESTS_KEY] = package.pop(LEGACY_HIDDEN_TESTS_KEY, {})
     submission = WireSubmission(
         schema_version=SCHEMA_VERSION,
         task_id=task.task_id,
         package_hash=task.stable_hash(),
-        package=task.canonical_dict(),
+        package=package,
         family=family,
         declared_difficulty=str(declared_difficulty),
     ).to_dict()
@@ -71,7 +76,9 @@ def from_wire(payload: dict[str, Any], *, max_bytes: int = MAX_PACKAGE_BYTES) ->
     try:
         from dolores.schemas.task import TaskPackage
 
-        task = TaskPackage.model_validate(payload["package"])
+        task = TaskPackage.model_validate(engine_package_from_wire(payload["package"]))
+    except WireError:
+        raise
     except ValidationError as exc:
         raise WireError(_validation_reason(exc), _validation_detail(exc)) from exc
     except Exception as exc:  # noqa: BLE001
@@ -89,6 +96,25 @@ def from_wire(payload: dict[str, Any], *, max_bytes: int = MAX_PACKAGE_BYTES) ->
             f"claimed {payload['package_hash']} != recomputed {stable_hash}",
         )
     return task
+
+
+def engine_package_from_wire(package: dict[str, Any]) -> dict[str, Any]:
+    """Map public author-test terminology into the pinned engine schema."""
+
+    if LEGACY_HIDDEN_TESTS_KEY in package:
+        raise WireError(
+            "parse_execution_material",
+            "wire package must use 'author_tests'; validator holdout is private",
+        )
+    if AUTHOR_TESTS_KEY not in package:
+        raise WireError("parse_execution_material", "wire package missing 'author_tests'")
+    author_tests = package[AUTHOR_TESTS_KEY]
+    if not isinstance(author_tests, dict):
+        raise WireError("parse_execution_material", "author_tests must be a mapping")
+    engine_package = dict(package)
+    engine_package.pop(AUTHOR_TESTS_KEY)
+    engine_package[LEGACY_HIDDEN_TESTS_KEY] = dict(author_tests)
+    return engine_package
 
 
 def materialize(task: Any, root: Path) -> Path:

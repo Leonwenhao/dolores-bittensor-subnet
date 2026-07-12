@@ -1,169 +1,128 @@
 # Testnet Status
 
-Canonical, evidence-backed status for the Dolores Autocurricula subnet. A
-machine-readable mirror lives at [`../configs/testnet.json`](../configs/testnet.json).
+Canonical public-chain status for Dolores on Bittensor public testnet netuid
+`523`. Historical proof and current service readiness are deliberately separate.
 
-## Network
+## Current snapshot — 2026-07-12
+
+Read-only observation at block `7543179`:
+
+| UID | Role | `last_update` | Current state | Axon |
+|---:|---|---:|---|---|
+| 0 | validator | `7521406` | `active=false`; incentive/dividends `0` | `0.0.0.0:0` |
+| 1 | first-party miner | stale | public incentive/dividends `0` | `192.168.1.94:8091` |
+| 2 | first-party miner | stale | public incentive/dividends `0` | `192.168.1.94:8092` |
+
+The validator was `21773` blocks past its last update at the observed block.
+The two miner endpoints are old RFC1918 addresses and are not reachable public
+cohort infrastructure. The validator is not advertising an axon. Therefore the
+subnet has valid historical chain receipts but is **stale/offline and not
+launch-live**.
+
+The `0.2.0rc1` endpoint policy now rejects private, loopback, link-local,
+reserved, and other non-global addresses for public publication. A cohort miner
+must publish a stable globally routable IPv4/port and pass exact metagraph
+read-back.
+
+## Network identity
 
 | Field | Value |
 |---|---|
-| Subnet name | Dolores Autocurricula |
-| Network | Bittensor public **testnet** |
-| netuid | **523** |
-| Registered / started | 2026-07-08 |
-| Repo | https://github.com/Leonwenhao/dolores-bittensor-subnet |
+| Subnet | Dolores Autocurricula |
+| Network | Bittensor public testnet |
+| Netuid | `523` |
+| Created / started | 2026-07-08 |
+| Repository | https://github.com/Leonwenhao/dolores-bittensor-subnet |
 
-## On-chain events
-
-All extrinsics are on Bittensor testnet, 2026-07-08.
-
-| Event | Extrinsic |
-|---|---|
-| Subnet create | `7512866-7` |
-| Subnet start (emission schedule) | `7512878-7` |
-| Miner-0 register | `7512886-6` |
-| Miner-1 register | `7512893-7` |
-| Validator stake | `7512943-6` |
-| Commit-reveal disable | `7512952-7` |
-| First public live weights | `7520191-8` |
-
-## Addresses and UIDs
-
-| Role | UID | SS58 |
-|---|---|---|
+| Role | UID | Public SS58 |
+|---|---:|---|
 | Owner coldkey | — | `5ELE5RrYaxhRLoumvMenr2rSqpZZLX4nxNnYA5B7mLLNJHVG` |
 | Validator | 0 | `5DyNfBdYMMUMiSRNpVCWPm7Lfoexa2A7z7L11QCMMdEmCLdm` |
 | Miner-0 | 1 | `5FHE1ZpqMVWS3wyjbTmqDP4obyT1UhJ5fmzJWkf8noAVxkEA` |
 | Miner-1 | 2 | `5DhPKfTfbN5nwTx3riEQz5TPZH94PV8GLV8oqFMyFG61ZkQg` |
 
-## Stake and hyperparameters
+## Historical on-chain events
 
-- Validator stake: **22.200467971 alpha** on netuid 523 (uid 0).
-- Commit-reveal: **disabled**, verified `commit_reveal_weights_enabled=false`
-  on-chain after an owner toggle (extrinsic `7512952-7`).
+All rows below are public-testnet events, not claims of current uptime.
 
-A testnet faucet top-up of roughly 10 τ landed between miner registration and
-the validator stake; balances are otherwise not load-bearing for the status
-here and are omitted.
+| Event | Extrinsic |
+|---|---|
+| Subnet create | `7512866-7` |
+| Start emission schedule | `7512878-7` |
+| Register miner uid 1 | `7512886-6` |
+| Register miner uid 2 | `7512893-7` |
+| Validator stake | `7512943-6` |
+| Disable commit-reveal | `7512952-7` |
+| First public live weights | `7520191-8` |
 
-## Public live weights
+At the July 8/9 proof point, validator stake was observed at
+`22.200467971` alpha, validator permit was true, and
+`commit_reveal_weights_enabled=false` had read back after the owner toggle.
+These are dated observations; they are not substituted for a fresh preflight.
 
-The subnet is **registered, started, staked, permit-granted, and live-weighted**
-on Bittensor public testnet.
+## First live-weight proof — 2026-07-09
 
-- Validator permit: **true**, observed in `btcli wallet overview` before the
-  first submit.
-- First public submit: `7520191-8`, 2026-07-09, netuid 523.
-- Emitted vector: uid `1` received full weight, encoded as `65535`.
-- Direct storage read-back: `Weights[523,0] = [(1, 65535)]`.
-- Wallet overview read-back: validator uid `0` `UPDATED` counter reset from
-  roughly `7310` before submit to `3` after submit.
+The first public submit was extrinsic `7520191-8`. It encoded full weight for
+uid `1`, and direct storage read-back returned:
 
-Operational note: the repo validator's SDK dry-run path hit intermittent
-testnet websocket hangs during the first public run. The submit therefore used a
-minimal direct async substrate fallback that composed the same
-`SubtensorModule.set_weights` call for `dests=[1]`, `weights=[65535]`,
-`version_key=1`, signed by the validator hotkey on `network=test`. The
-wire-mode validator artifact immediately before the submit scored miner-0 at
-`1.0` and miner-1 at `0.0`, and replay checked `REPLAY OK`. The direct storage
-read-back `Weights[523,0] = [(1, 65535)]` confirms the fallback payload landed
-exactly as intended.
+```text
+Weights[523,0] = [(1, 65535)]
+```
 
-## Metagraph readout: what is and isn't claimed
+Immediately before the submit, the validator artifact scored miner uid 1 at
+`1.0`, uid 2 at `0.0`, and replay reported `REPLAY OK`. The first submission
+used a minimal direct async-substrate fallback after the then-current SDK path
+encountered websocket hangs. That caveat is historical: a later live submit ran
+through the repository's gated SDK path and produced a successful receipt with
+extrinsic hash beginning `0x8873244e`.
 
-- **UPDATED (validator uid 0).** `UPDATED` counts blocks since a UID last set
-  weights. It reset from roughly `7310` to `3` on submit — the metagraph
-  confirming the validator set weights recently. Miners never set weights, so
-  their `UPDATED` simply grows; that is expected.
-- **AXON = none.** `serve_axon` was deliberately not called for the first
-  submit. Miners ran as local axons and the validator was pointed at them with
-  explicit endpoints, keeping the first public weight event fully controlled.
-  On-chain miner discovery is a separate, later milestone.
-- **ACTIVE (miners) = false — cosmetic.** On-chain, `active` means
-  `current_block − last_update < activity_cutoff` (5000 blocks here), and
-  `last_update` is refreshed only by that hotkey's own `set_weights`. Miners
-  never set weights, so miner `ACTIVE` stays false permanently — and it does
-  **not** gate rewards: the weighted miner earns full incentive and emission
-  with `active=false`. The validator's `ACTIVE` flipped true when it set
-  weights. Publishing an axon does not change this flag.
-- **INCENTIVE / EMISSION — live since the first Yuma pass.** Yuma consensus
-  ran at the tempo boundary (~20 min) after the submit. Verified on-chain
-  (2026-07-09 ~07:40 UTC): miner uid 1 `incentive = 1.0` with per-uid alpha
-  emission ≈ 147.6 α/tempo; validator uid 0 `dividends = 1.0`,
-  `vtrust = 1.0`; unweighted miner uid 2 all zeros. The incentive pipeline
-  works end to end. The one number that stays ~0 is **subnet-level TAO
-  emission** — the subnet's share of network TAO, driven by alpha price
-  (~0.0042 τ, the floor); expected to stay ~0 on public testnet
-  indefinitely. Testnet tokens carry no economic value.
+After the first Yuma tempo boundary, uid 1 was observed with incentive `1.0`
+and nonzero per-uid alpha emission; uid 0 had dividends and vtrust `1.0`; uid 2
+remained zero. This proved that the testnet incentive path processed the weight.
+The July 12 values have since returned to zero while the services are stale, so
+the historical observation must not be described as current emission.
 
-## On-chain miner discovery (2026-07-09, later the same day)
+## Historical axon discovery — later 2026-07-09
 
-Both miner axons were published via `serve_axon` (hotkey-signed, operator-
-approved): uid 1 at `192.168.1.94:8091`, uid 2 at `192.168.1.94:8092` —
-`AXON` no longer reads `none`. The validator then ran a public-testnet
-dry-run epoch **without `--miner-endpoints`**, discovering both miners from
-the metagraph: receipt `reason = dry_run_ok`, both hotkeys mapped to uids
-1/2, honest miner at full weight (`uids_emitted=[1]`,
-`weights_u16=[65535]`), duplicate-spammer scored 0, replay `REPLAY OK`.
-(Publication populates `AXON`; it does not flip miner `ACTIVE`, which is
-weights-based and cosmetic for miners.)
+The first live-weight submit intentionally used local Axons with explicitly
+supplied endpoints and made no discovery claim. Later that day, both first-party
+miners signed `serve_axon` publication and the metagraph stored
+`192.168.1.94:8091` and `192.168.1.94:8092`. A validator dry-run then discovered
+both entries from the metagraph without supplied endpoints, mapped them to uids
+1 and 2, assigned full dry-run weight to uid 1, and replayed successfully.
 
-## Second live weights — fully repo-native (2026-07-09)
+This is genuine historical proof that the discovery code path worked in the
+operator's network context. It is **not** proof of an Internet-reachable or
+stable public miner: RFC1918 addresses cannot support the external cohort and
+the current RC refuses them in its public publish path.
 
-The second public `set_weights` ran entirely through the repo's own SDK path
-(no manual fallback): metagraph-discovered miners, four live gates, receipt
-`mode = submitted, reason = submitted_ok` carrying full on-chain metadata —
-extrinsic hash `0x8873244e…607c4469`, block hash `0xf7c0a41f…a32bc23`,
-extrinsic index 7, `receipt_success = true`. Same payload digest as the
-discovery dry-run; replay `REPLAY OK`; validator `UPDATED` reset confirmed.
-The bounded-timeout retry guard (websocket hang → clean fail-closed exit,
-retry same epoch) is what made this repeatable. The manual-fallback caveat
-on the first submit is now historical.
+## What remains unproved
 
-## Next milestones
-- Repeat weight submissions across tempo boundaries and record incentive/
-  emission stability (first pass verified 2026-07-09).
-- First non-first-party (cohort) miner registered, discovered, and scored.
+- Immutable public `0.2.0rc1` engine and subnet release installation without a
+  local checkout or private artifact.
+- Private receipt and triage of the pending security report.
+- A non-first-party miner with a stable public IPv4/port and signed reachability.
+- Two consecutive successful epochs giving that external miner nonzero weight.
+- Sustained validator operation and incentive observations after RC deployment.
 
-## Chain-safety posture
+Paid solver-panel calibration is off and is not a prerequisite for the cohort.
 
-- Live chain writes default **off**; the validator must be explicitly moved from
-  `off` → `dry-run` → `live`.
-- Four independent gates guard any live extrinsic.
-- Commit-reveal state is detected and **fails closed**: if commit-reveal is
-  enabled, live submission is skipped rather than sending a payload that would
-  not read back immediately. Because netuid 523 was verified commit-reveal-off,
-  the plain (Path A) weight flow applies; if the flag ever flips true, live
-  weights require an explicit `--allow-commit-reveal` and the receipt is treated
-  as *commit evidence*, not immediate metagraph read-back.
+## Safety and fresh read-back
 
-## Appendix: prior localnet rehearsal
+The current validator uses metagraph discovery, an exclusive recurring-tick
+lock, automatic epoch IDs, atomic recovery state, four independent live-weight
+gates, and fail-closed commit-reveal handling. A read-only operator health check
+must spell the fixed target explicitly:
 
-Before public registration, the entire chain path was rehearsed end-to-end
-against a **local substrate node** (`ws://127.0.0.1:9944`), not any public
-network.
+```bash
+dolores-validator health \
+  --mode testnet \
+  --work /var/lib/dolores-validator \
+  --wallet.name <VALIDATOR_WALLET> \
+  --wallet.hotkey <VALIDATOR_HOTKEY> \
+  --network test \
+  --netuid 523
+```
 
-- Local subnet created as `netuid=2`; emission schedule started (start extrinsic
-  `4221-2`).
-- Validator registered uid 0; miner-0 registered uid 1 (extrinsic `4837-2`);
-  miner-1 registered uid 2 (extrinsic `5355-3`).
-- Validator permit was **true** on the local node.
-- A live `set_weights` submission was **accepted by the local node**
-  (`mode=submitted`, `submission.success=true`).
-- Dry-run and live epochs produced deterministic weight artifacts that **replay
-  OK**.
-- The local `netuid=2` happened to have commit-reveal enabled, so post-fix runs
-  correctly **skipped** live submission with `reason=commit_reveal_enabled` —
-  demonstrating the fail-closed detection working as designed.
-
-The rehearsal proves the archive rows, deterministic weights, replay checks, and
-live submission mechanics. It is localnet evidence, not a public testnet receipt.
-
-## Status history
-
-- **2026-07-08** — Subnet created, started, both miners registered, validator
-  staked, commit-reveal verified off on Bittensor testnet netuid 523. At that
-  time, validator permit and public live weights were still pending.
-- **2026-07-09** — Validator permit observed true. First public live weights
-  submitted in extrinsic `7520191-8`; direct read-back confirmed
-  `Weights[523,0] = [(1, 65535)]`.
+No historical row authorizes registration, axon publication, live weights,
+artifact publication, participant contact, or paid inference.

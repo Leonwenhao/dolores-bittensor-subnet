@@ -1,118 +1,128 @@
 # Architecture
 
-Dolores Autocurricula proves a single loop: **miners propose verifiable task
-packages, and the validator scores each package for marginal value to a
-curriculum archive.** The design goal for this stage is to prove the *loop*, not
-the economics.
+Dolores `0.2.0rc1` is a controlled-cohort protocol for authenticated,
+verifiable task supply on Bittensor public testnet netuid `523`.
 
-## Components
+## Release boundary
 
-- **Miner** — supplies a Dolores task package: an RL coding-agent task with
-  public tests, hidden tests, a reference solution, and metadata. Personas
-  (honest, duplicate-spammer, invalid) let the loop be tested adversarially.
-- **Validator** — pulls packages over signed axon/dendrite transport, runs the
-  verification pipeline, scores, updates weights, and writes evidence.
-- **Verification pipeline** — the gauntlet each package must survive (below).
-- **Scoring / EMA** — turns per-task results into per-miner scores, smooths them
-  with an exponential moving average, and normalizes to a weight vector.
-- **Archive** — durable record of tasks, verification runs, and lineage
-  (JSONL submissions plus a DuckDB store).
-- **Chain layer** — the gated path that turns a weight vector into an on-chain
-  `set_weights` extrinsic.
+The subnet depends on one authoritative engine distribution:
 
-The subnet deliberately **reuses the Dolores Autocurricula engine** (task
-schema, canonical task hashes, Docker verification, safety scanner, hidden-test
-separation, wrong-solution probes, scoring) rather than re-implementing that
-logic. The subnet's own additions are the miner/validator process boundary,
-task-submission messages and content hashes, per-miner aggregation, weight
-generation, and the wallet/chain integration.
+- miner base: `dolores-autocurricula==0.2.0rc1`
+- validator extra: `dolores-autocurricula[validator]==0.2.0rc1`
+- subnet: `dolores-bittensor-subnet==0.2.0rc1`
 
-## Epoch flow, end to end
+The lightweight engine base owns task schema, canonical serialization, stable
+hashing, loading, and deterministic task generation. Validator-only DuckDB,
+pytest, and Hypothesis dependencies live behind the extra. The subnet neither
+vendors nor reimplements consensus-critical schema/hash logic.
 
-```
-1. Miner selects/creates a Dolores task package and submits a content hash
-   plus the task payload over the wire.
-2. Validator loads the package.
-3. Cheap gates run in order (fail-closed):
-      a. schema valid
-      b. safety clean
-      c. reference solution passes public AND hidden tests in Docker
-      d. wrong-solution probes are caught (bad code must fail hidden tests)
-      e. duplicate / dedup gate passes
-4. Validator assigns a quality score (0 on any hard-gate failure); for
-   surviving tasks a solver panel supplies the difficulty signal — mock by
-   default, named models in calibration mode.
-5. Scores feed the EMA; EMA is normalized into the weight vector.
-6. Validator writes an archive row (task + verification run + lineage).
-7. Validator emits two artifacts: deterministic weights file and chain receipt.
-8. CLI report shows accepted tasks, per-miner ranking, and replay status.
+Immutable public engine and subnet artifacts are still a release gate. Runtime
+paths do not accept source-path overrides, adjacent checkouts, or private
+filesystem dependencies.
+
+## Protocol boundary
+
+The public submission schema is `dolores-subnet-v1`; transport envelopes use
+`dolores-wire-v1`.
+
+```text
+miner Axon
+  -> SDK request authentication and replay checks
+  -> validator-hotkey authorization
+  -> signed response bound to request and payload digest
+  -> schema / size / stable-hash / quota gates
+  -> safety and author checks in Docker
+  -> validator-private holdout and known-wrong probes
+  -> archive deduplication and scoring
+  -> EMA and normalized weights
+  -> deterministic weights artifact + volatile chain receipt
 ```
 
-A single hard-gate failure sets `score = 0`. Otherwise the staged score weighs
-verifier quality, novelty/diversity, frontier (difficulty) signal, and metadata
-clarity. The difficulty signal comes from a solver panel that runs **only on
-tasks that have already cleared the hard gates** — never as a gate itself. By
-default the panel is a **pinned mock panel**, so no paid inference is required
-to run the loop. An **optional calibration mode** (`--panel-mode calibrate`)
-swaps in a panel of named frontier/open models and folds the *measured*
-difficulty into the score; it is operator-gated behind an explicit spend
-opt-in, budget-capped per epoch, cached by task hash so a task is never
-measured (or billed) twice, and off by default. Infra-class failures
-(provider errors, timeouts, truncation, parse errors) are excluded from the
-measured solve rate and are never cached. Either way, raw panel output is
-**volatile evidence**: per-attempt telemetry lands in a per-epoch
-`solver_panel_epoch_N.json` sidecar, and only the derived, deterministic
-solve-rate signal touches task values — the weights file's replay guarantee
-depends only on gate outcomes and recorded inputs.
+Miner-supplied tests are **author tests**. On the wire they appear only as
+`author_tests`; the engine's internal on-disk field name is mapped at the
+package boundary. Active validator holdout cases never appear in the request,
+response, task archive, or public evidence.
 
-## Fail-closed chain safety
+The cohort accepts only core `parser_roundtrip` tasks with archetype
+`escape_delim`, `error_contract`, or `quoted_fields`. A versioned holdout policy
+derives deterministic cases from an operator secret and package hash. Public
+evidence records digests and outcomes, not cases or secret material.
 
-The chain layer is designed so that the *default* behavior of every path is to
-**not** write to a public chain.
+## Authenticated transport
 
-**Gate tiers.** The validator's chain mode is one of:
+The miner's cohort verifier invokes Bittensor's default Axon verifier, then
+enforces a fixed nonce-age window, minimum authenticated SDK version, its own
+replay cache, and an authenticated-hotkey token bucket. A bounded ASGI admission
+layer caps request bytes and source-IP frequency before SDK parsing. Required
+body-hash fields cover protocol version, request ID, epoch ID, quota, and
+timeout. A blacklist callback restricts callers to configured validator
+hotkeys; permissive signed-caller mode is local-only and cannot be published.
 
-- `off` — default. No extrinsic is ever constructed for submission.
-- `dry-run` — the real weight payload is built and a receipt is produced, but
-  nothing is submitted. Used to inspect exactly what *would* be sent.
-- `live` — submission is attempted, and only after all gates pass.
+Because the SDK does not authenticate the returned JSON body, the miner adds an
+application signature over the canonical submissions digest and binds it to the
+request nonce/UUID, validator and miner hotkeys, epoch, quota, request ID, and
+protocol version. A bounded Dendrite caps the decompressed response before JSON
+materialization, and the validator verifies all bindings before scoring.
+Missing signatures, tampering, identity mismatch, stale requests, replay, rate
+excess, and oversize bodies fail closed.
 
-**Four independent live gates.** Moving to a live submission requires all of:
-an explicit chain mode of `live`, an explicit allow-extrinsics flag, an explicit
-typed confirmation phrase, and a matching environment guard. Any one missing
-aborts before signing. This makes an accidental live write essentially
-impossible from a normal command.
+## Public endpoint policy
 
-**Commit-reveal handling.** Before submitting, the validator detects the
-subnet's `commit_reveal_weights_enabled` state via the SDK. If commit-reveal is
-enabled, live submission is **skipped** (`reason=commit_reveal_enabled`) rather
-than sending a plain payload that would not read back on the metagraph
-immediately. Overriding this requires an explicit `--allow-commit-reveal`, and
-the resulting receipt is treated as *commit* evidence, not immediate read-back
-evidence. This detection is the piece that was hardened during localnet
-rehearsal after an early payload committed but did not read back.
+Public serving requires a literal globally routable IPv4 address, fixed port,
+`--network test --netuid 523`, and exact metagraph read-back for the miner
+hotkey. Private, loopback, link-local, multicast, unspecified, and reserved
+addresses are rejected. Testnet validator ticks discover axons from the
+metagraph; manual endpoints are forbidden in that mode.
 
-## Determinism and replay
+Loopback endpoints remain available only inside explicitly local wire tests and
+are never described as public cohort evidence.
 
-Scoring is byte-reproducible. Each epoch writes a **deterministic weights file**
-that is independent of chain conditions, plus a separate **volatile chain
-receipt** recording the extrinsic outcome. The split is deliberate: the proof
-that scoring is correct must not depend on whether a chain write succeeded.
+## Isolated verification
 
-The reporting tool can `--replay-check` any epoch: it re-derives the weight
-vector from the recorded inputs and confirms it matches the stored artifact,
-printing `REPLAY OK`. This makes every epoch independently auditable from the
-archive alone.
+The validator uses `dolores-verifier-pytest:0.2.0rc1`. The Dockerfile ships as
+an engine package resource, so image construction works from an installed wheel.
+Execution is fail-closed and uses:
 
-## What runs where
+- no network;
+- non-root UID/GID `65532:65532`;
+- read-only root and task bind mount;
+- all capabilities dropped and `no-new-privileges`;
+- PID, CPU, memory, swap, and tmpfs limits.
 
-- **Docker verifier** — every task's reference solution and probes execute in a
-  container (`containerized=true`, `executed=true` in the verification record),
-  so verification is isolated and reproducible rather than trusting miner-side
-  claims.
-- **Archive** — submissions are appended as JSONL for a streaming audit trail;
-  tasks, verification runs, and lineage are also written to a DuckDB store for
-  queryable history.
-- **Transport** — miners run Bittensor axons; the validator dendrites into them.
-  Transport failures (an unreachable miner) are recorded as a first-class
-  `unreachable` status with zeroed value, not as a pipeline crash.
+The reference must pass author checks and the private holdout. Known-wrong
+probes must fail. A hard-gate failure produces zero task value.
+
+## Recurring validator
+
+`dolores-validator tick` is one supervised unit of work, not a hidden daemon.
+One exclusive OS lock spans the whole tick. Epoch IDs are automatically
+allocated and monotonic. Atomic durable state follows:
+
+```text
+allocated -> querying -> evaluating -> weights_submitting -> committed
+```
+
+Discovery failures before durable evaluation may retry the same epoch.
+Evaluation failure advances safely. Before commit, a canonical completion
+marker hashes the epoch-scoped miner state, weights, panel sidecar, and definite
+chain evidence. A marker can be recovered explicitly. A live attempt without a
+verified marker remains ambiguous and blocks automatic recovery or resubmission.
+
+`dolores-validator health` combines runtime state, Docker/image readiness,
+read-only chain preflight, public metagraph discovery, and a signed wire probe
+enabled by default. Disabling that probe deliberately makes health unhealthy.
+A system supervisor supplies schedule, restart, and logging.
+
+## Determinism and chain safety
+
+Each epoch separates a reproducible weights artifact from its volatile chain
+receipt. Archive writes and runtime state use atomic replacement; replay checks
+do not depend on RPC conditions.
+
+Live weights remain behind four independent gates: explicit live mode,
+allow-extrinsics CLI opt-in, an environment guard supplied only for that run,
+and an exact typed confirmation. Commit-reveal uncertainty blocks submission.
+The cohort target is fixed to public testnet netuid `523`.
+
+Solver-panel calibration is mock by default. Paid provider execution requires
+separate explicit spend gates and is not part of the controlled-cohort proof.

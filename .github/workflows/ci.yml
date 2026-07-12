@@ -5,23 +5,214 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+env:
+  ENGINE_VERSION: 0.2.0rc1
+  ENGINE_SHA256: 6cc5a5e91c4fee73aa34f7d16d5905cb21366439fea8b4188f2c3db9978954fc
+  ENGINE_WHEEL_URL: https://github.com/Leonwenhao/dolores-autocurricula/releases/download/v0.2.0-rc.1/dolores_autocurricula-0.2.0rc1-py3-none-any.whl
+  ENGINE_WHEEL: /tmp/dolores_autocurricula-0.2.0rc1-py3-none-any.whl
+  SUBNET_WHEEL: /tmp/subnet-dist/dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl
+  SUBNET_SDIST: /tmp/subnet-dist/dolores_bittensor_subnet-0.2.0rc1.tar.gz
+  GOLDEN_PARSER_HASH: fbf1ca8f3b9cad51370332bb1329d03b16306d4828bed9674e1a3d2a2f80a249
+
 jobs:
-  test:
+  full-stack:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install
-        run: pip install -e ".[dev]"
-      - name: Lint
-        run: ruff check .
-      - name: Public smoke tests
+          cache: pip
+      - name: Fetch pinned Dolores engine
         run: |
-          python -m pytest -q \
-            tests/test_config.py \
-            tests/test_panel_scoring.py \
-            tests/test_protocol.py \
-            tests/test_scoring_weights.py \
-            tests/test_wire.py
+          curl --fail --location --retry 3 \
+            --output "$ENGINE_WHEEL" "$ENGINE_WHEEL_URL"
+          echo "$ENGINE_SHA256  $ENGINE_WHEEL" | sha256sum --check --strict
+      - name: Install validator and development dependencies
+        run: |
+          python -m pip install "$ENGINE_WHEEL"
+          python -m pip install -e ".[dev]"
+          python -m pip check
+      - name: Lint
+        run: ruff check --no-cache .
+      - name: Full tests including Docker holdout and signed wire
+        env:
+          DOLORES_HOLDOUT_SECRET: ci-only-not-a-production-secret
+        run: python -m pytest -q -p no:cacheprovider
+      - name: Security gates are present
+        run: |
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_bittensor_default_verify.py \
+            tests/test_miner_auth_policy.py \
+            tests/test_wire_auth.py \
+            tests/test_wire_http_smoke.py \
+            tests/test_wire_transport_cap.py \
+            tests/test_holdout.py \
+            tests/test_holdout_docker.py \
+            tests/test_validator_state.py \
+            tests/test_recurring_process_restart.py \
+            tests/test_supervisor_units.py
+
+  release-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Fetch and verify pinned Dolores engine
+        run: |
+          curl --fail --location --retry 3 \
+            --output "$ENGINE_WHEEL" "$ENGINE_WHEEL_URL"
+          echo "$ENGINE_SHA256  $ENGINE_WHEEL" | sha256sum --check --strict
+      - name: Build subnet wheel and source distribution
+        run: |
+          python -m pip install --upgrade build
+          rm -rf /tmp/subnet-dist
+          python -m build --wheel --sdist --outdir /tmp/subnet-dist .
+          test -f "$SUBNET_WHEEL"
+          test -f "$SUBNET_SDIST"
+          sha256sum "$SUBNET_WHEEL" "$SUBNET_SDIST"
+          tar --list --gzip --file "$SUBNET_SDIST"
+      - name: Assemble and extract the checkout-independent release bundle
+        run: |
+          rm -rf /tmp/release-bundle /tmp/bundle-smoke
+          install -d /tmp/release-bundle/artifacts /tmp/release-bundle/examples/tasks
+          install -m 0644 "$ENGINE_WHEEL" "$SUBNET_WHEEL" "$SUBNET_SDIST" \
+            /tmp/release-bundle/artifacts/
+          cp -R examples/tasks/honest_example \
+            /tmp/release-bundle/examples/tasks/honest_example
+          tar --create --gzip \
+            --file /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz \
+            --directory /tmp release-bundle
+          sha256sum /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz
+          install -d /tmp/bundle-smoke
+          tar --extract --gzip \
+            --file /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz \
+            --directory /tmp/bundle-smoke
+          test -f /tmp/bundle-smoke/release-bundle/examples/tasks/honest_example/task.yaml
+      - name: Clean miner install and canonical digest smoke
+        run: |
+          python -m venv /tmp/miner-venv
+          /tmp/miner-venv/bin/python -m pip install "$ENGINE_WHEEL"
+          /tmp/miner-venv/bin/python -m pip install "$SUBNET_WHEEL"
+          /tmp/miner-venv/bin/python -m pip check
+          cd /tmp
+          /tmp/miner-venv/bin/dolores-miner --help
+          /tmp/miner-venv/bin/dolores-miner init --output /tmp/cohort-tasks --seed 17
+          /tmp/miner-venv/bin/dolores-miner validate --task-dir /tmp/cohort-tasks
+          /tmp/miner-venv/bin/dolores-miner validate \
+            --task-dir /tmp/bundle-smoke/release-bundle/examples/tasks/honest_example
+          /tmp/miner-venv/bin/python - <<'PY'
+          import importlib.util
+          import os
+          from pathlib import Path
+
+          import dolores
+          import dolores_subnet
+          from dolores.schemas.task import TaskPackage
+          from dolores_subnet.packaging import from_wire, to_wire
+
+          assert dolores.__version__ == "0.2.0rc1"
+          assert dolores_subnet.__version__ == "0.2.0rc1"
+          for name in ("duckdb", "streamlit", "pyarrow", "hypothesis", "pytest"):
+              assert importlib.util.find_spec(name) is None, name
+          expected = os.environ["GOLDEN_PARSER_HASH"]
+          task = TaskPackage.load(
+              Path("/tmp/bundle-smoke/release-bundle/examples/tasks/honest_example")
+          )
+          wire = to_wire(task)
+          assert task.stable_hash() == expected
+          assert wire["package_hash"] == expected
+          assert from_wire(wire).stable_hash() == expected
+          print(f"clean_miner_golden_digest={expected}")
+          print("clean_miner_boundary=ok")
+          PY
+      - name: Clean validator install and canonical digest smoke
+        env:
+          DOLORES_HOLDOUT_SECRET: ci-only-not-a-production-secret
+        run: |
+          python -m venv /tmp/validator-venv
+          /tmp/validator-venv/bin/python -m pip install "${ENGINE_WHEEL}[validator]"
+          /tmp/validator-venv/bin/python -m pip install "${SUBNET_WHEEL}[validator]"
+          /tmp/validator-venv/bin/python -m pip check
+          cd /tmp
+          /tmp/validator-venv/bin/dolores-validator --help
+          /tmp/validator-venv/bin/dolores-validator once \
+            --submissions /tmp/bundle-smoke/release-bundle/examples/tasks/honest_example \
+            --work /tmp/validator-once \
+            --epoch 1 \
+            --quota 1
+          /tmp/validator-venv/bin/python - <<'PY'
+          import json
+          import importlib.util
+          import os
+          from pathlib import Path
+
+          from dolores.schemas.task import TaskPackage
+          from dolores_subnet.config import Mode, SubnetConfig
+          from dolores_subnet.packaging import from_wire, to_wire
+
+          for name in ("duckdb", "hypothesis", "pytest"):
+              assert importlib.util.find_spec(name) is not None, name
+          expected = os.environ["GOLDEN_PARSER_HASH"]
+          task = TaskPackage.load(
+              Path("/tmp/bundle-smoke/release-bundle/examples/tasks/honest_example")
+          )
+          wire = to_wire(task)
+          assert task.stable_hash() == expected
+          assert wire["package_hash"] == expected
+          assert from_wire(wire).stable_hash() == expected
+          cfg = SubnetConfig.from_env(mode=Mode.OFFLINE, work_dir="/tmp/validator-once")
+          assert cfg.panel_path.is_file(), cfg.panel_path
+          assert cfg.panel_path.is_relative_to(Path("/tmp/validator-venv").resolve())
+          rows = [
+              json.loads(line)
+              for line in cfg.submissions_path.read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+          assert len(rows) == 1
+          assert rows[0]["verification"]["executed"] is True
+          assert rows[0]["verification"]["containerized"] is True
+          print(f"clean_validator_golden_digest={expected}")
+          print(f"clean_validator_panel_asset={cfg.panel_path}")
+          PY
+      - name: Extract and smoke the source distribution outside the checkout
+        run: |
+          rm -rf /tmp/subnet-sdist-source /tmp/sdist-venv
+          install -d /tmp/subnet-sdist-source
+          tar --extract --gzip --file "$SUBNET_SDIST" \
+            --directory /tmp/subnet-sdist-source
+          test -f /tmp/subnet-sdist-source/dolores_bittensor_subnet-0.2.0rc1/pyproject.toml
+          python -m venv /tmp/sdist-venv
+          cd /tmp
+          /tmp/sdist-venv/bin/python -m pip install "$ENGINE_WHEEL"
+          /tmp/sdist-venv/bin/python -m pip install \
+            /tmp/subnet-sdist-source/dolores_bittensor_subnet-0.2.0rc1
+          /tmp/sdist-venv/bin/python -m pip check
+          /tmp/sdist-venv/bin/dolores-miner --help
+          /tmp/sdist-venv/bin/python - <<'PY'
+          import os
+          from pathlib import Path
+
+          import dolores_subnet
+          from dolores.schemas.task import TaskPackage
+          from dolores_subnet.packaging import from_wire, to_wire
+
+          module_path = Path(dolores_subnet.__file__).resolve()
+          assert module_path.is_relative_to(Path("/tmp/sdist-venv").resolve()), module_path
+          expected = os.environ["GOLDEN_PARSER_HASH"]
+          task = TaskPackage.load(
+              Path("/tmp/bundle-smoke/release-bundle/examples/tasks/honest_example")
+          )
+          wire = to_wire(task)
+          assert task.stable_hash() == expected
+          assert wire["package_hash"] == expected
+          assert from_wire(wire).stable_hash() == expected
+          print(f"clean_sdist_golden_digest={expected}")
+          print(f"clean_sdist_import={module_path}")
+          PY

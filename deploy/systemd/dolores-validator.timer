@@ -1,0 +1,13 @@
+[Unit]
+Description=Schedule serialized Dolores validator dry-run ticks
+Documentation=https://github.com/Leonwenhao/dolores-bittensor-subnet
+
+[Timer]
+Unit=dolores-validator.service
+OnBootSec=10min
+OnUnitInactiveSec=75min
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

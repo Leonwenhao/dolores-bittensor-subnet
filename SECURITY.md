@@ -5,8 +5,13 @@ explicitly configured to do so. Security reports are taken seriously.
 
 ## Reporting
 
-Please report vulnerabilities via GitHub private security advisories on this
-repository (Security → Report a vulnerability) rather than public issues.
+Do not disclose vulnerability details in a public issue. GitHub private
+vulnerability reporting is the required channel for this release, but it is
+currently disabled and therefore blocks public cohort launch. A reporter should
+use an already-established private contact only to ask the maintainer to enable
+the repository channel; the maintainer must then receive and triage the report
+privately before launch. See `docs/security-disclosure-packet.md` for the exact
+operator gate.
 
 Highest-interest areas:
 

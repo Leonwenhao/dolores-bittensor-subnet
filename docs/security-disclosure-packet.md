@@ -12,6 +12,8 @@ human-gated reply and private triage without exposing vulnerability details.
 - An approved GitHub API change followed by read-back at
   `2026-07-12T19:32:08Z` returned `{"enabled":true}` for the repository's
   private-vulnerability-reporting setting.
+- The separately approved public-safe notice was posted by `Leonwenhao` at
+  `2026-07-12T19:34:46Z` as issue comment `4952486451`.
 - Issue #4 intentionally contains no vulnerability details, and none are
   reproduced here.
 
@@ -60,20 +62,23 @@ Status: `PASS`
    advisory and triage record according to GitHub's normal security workflow;
    disabling intake must not delete the evidence needed for remediation.
 
-## Private-channel reply after enablement
+## Completed public-safe notification
 
-Reply on issue #4 only with a short statement that private reporting is now
-available and ask the reporter to use the private channel. Do not ask for finding
-details, exploit steps, attachments, or patches in the public issue.
+Status: `PASS`
 
-Suggested public-safe reply:
+After separate operator approval, issue #4 received only the public-safe notice
+that private reporting is available and that the reporter should use that
+channel. No finding details, exploit steps, attachments, or patches were
+requested or posted.
+
+Exact posted notice:
 
 > Private vulnerability reporting is now enabled. Please submit the report
 > through the repository's private vulnerability reporting flow. We will
 > acknowledge and triage it there.
 
-Sending the reply is a separate external communication and requires explicit
-operator approval.
+Live read-back matched this notice exactly. No duplicate comment was posted by
+the release agent.
 
 ## Private triage record
 

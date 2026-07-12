@@ -55,7 +55,10 @@ def test_security_docs_record_enabled_channel_without_overclaiming_triage() -> N
     assert '| PASS | A private reporting channel exists. |' in checklist
     assert '`{"enabled":true}` at `2026-07-12T19:32:08Z`' in checklist
     assert "The private-channel gate is now `PASS`" in packet
-    assert "Sending the reply is a separate external communication" in packet
+    assert "## Completed public-safe notification" in packet
+    assert "issue comment `4952486451`" in packet
+    assert "No duplicate comment was posted" in packet
     assert "| Private vulnerability reporting channel | `PASS` |" in manifest
+    assert "| Public-safe reporter notification | `PASS` |" in manifest
     assert "| Private report receipt | `PENDING-HUMAN` |" in manifest
     assert "| Private report triage | `PENDING-HUMAN` |" in manifest

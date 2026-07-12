@@ -14,3 +14,4 @@ include docs/security-disclosure-packet.md
 include docs/testnet-status.md
 include docs/validator-operations.md
 recursive-include docs/decisions *.md
+prune tests

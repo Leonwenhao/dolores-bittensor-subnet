@@ -164,6 +164,7 @@ def test_source_manifest_contains_public_ops_assets_and_excludes_internal_notes(
         "include docs/cohort-release-checklist.md",
     ):
         assert required in lines
+    assert "prune tests" in lines
     assert not any(
         private in line
         for line in lines

@@ -44,8 +44,12 @@ rehearsal only and cannot enter the public publish path.
 
 The release-candidate version is `0.2.0rc1` for both distributions. The subnet
 pins `dolores-autocurricula==0.2.0rc1`; a clean two-wheel install is the local
-release gate. Publishing the engine repository/artifacts, creating the remote,
-pushing commits, and creating tag `v0.2.0-rc.1` remain explicit human gates.
+release gate. It also pins the installed-SDK graph's tested
+`async-substrate-interface==2.2.1` and `websockets==16.0` pair so a fresh pip
+resolver does not backtrack across incompatible or temporarily unavailable
+transitive candidates. Publishing the engine repository/artifacts, creating the
+remote, pushing commits, and creating tag `v0.2.0-rc.1` remain explicit human
+gates.
 
 ## Dependency alternatives considered
 

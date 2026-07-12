@@ -29,6 +29,8 @@ def test_release_metadata_pins_engine_sdk_and_installed_commands() -> None:
     assert project["dependencies"] == [
         "bittensor==10.5.0",
         "bittensor-cli==9.23.1",
+        "async-substrate-interface==2.2.1",
+        "websockets==16.0",
         "dolores-autocurricula==0.2.0rc1",
         "pydantic>=2.7",
         "PyYAML>=6.0",

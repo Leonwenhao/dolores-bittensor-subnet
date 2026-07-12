@@ -17,6 +17,8 @@ def test_subnet_metadata_pins_engine_and_sdk_with_validator_extra() -> None:
     assert project["version"] == "0.2.0rc1"
     assert "bittensor==10.5.0" in project["dependencies"]
     assert "bittensor-cli==9.23.1" in project["dependencies"]
+    assert "async-substrate-interface==2.2.1" in project["dependencies"]
+    assert "websockets==16.0" in project["dependencies"]
     assert "dolores-autocurricula==0.2.0rc1" in project["dependencies"]
     assert project["optional-dependencies"]["validator"] == [
         "dolores-autocurricula[validator]==0.2.0rc1"

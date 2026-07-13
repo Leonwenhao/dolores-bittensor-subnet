@@ -21,6 +21,7 @@ export SUBNET_RELEASE="https://github.com/Leonwenhao/dolores-bittensor-subnet/re
 export ENGINE_BASE="https://github.com/Leonwenhao/dolores-autocurricula/releases/download/$TAG"
 export SUBNET_BASE="https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/$TAG"
 export DOWNLOAD_DIR="/var/tmp/dolores-0.2.0rc1"
+export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc1"
 
 export ENGINE_WHEEL="dolores_autocurricula-0.2.0rc1-py3-none-any.whl"
 export ENGINE_SDIST="dolores_autocurricula-0.2.0rc1.tar.gz"

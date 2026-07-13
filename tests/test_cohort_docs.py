@@ -189,6 +189,7 @@ def test_validator_configuration_packet_is_sanitized_and_release_exact() -> None
         "https://github.com/Leonwenhao/dolores-autocurricula/releases/tag/$TAG",
         "https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/tag/$TAG",
         'export TAG="v0.2.0-rc.1"',
+        'export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc1"',
         "hackerquest-handoff-0.2.0rc1.md",
         "sha256sum --check --strict --ignore-missing",
         "Ubuntu `24.04 LTS` `amd64`",

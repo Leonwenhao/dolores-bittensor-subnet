@@ -24,7 +24,7 @@ env:
   SUBNET_WHEEL: /tmp/subnet-dist/dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl
   SUBNET_SDIST: /tmp/subnet-dist/dolores_bittensor_subnet-0.2.0rc1.tar.gz
   SUBNET_WHEEL_SHA256: 97e2dcd6592e94589b8492a1fc8ffaf449f1f11a3878cefca9059ee52cc2f665
-  SUBNET_SDIST_SHA256: 0e8ca99a65ba92e23fced7e71f40a6b921dd618c726c8b74001f55faa2f52382
+  SUBNET_SDIST_SHA256: f358a8801a21beff09b8a6f3f0cf9bc2ea7c3d2fcddd64c5953844f70728bc16
   SOURCE_DATE_EPOCH: "1783869698"
   GOLDEN_PARSER_HASH: fbf1ca8f3b9cad51370332bb1329d03b16306d4828bed9674e1a3d2a2f80a249
 

@@ -175,6 +175,56 @@ def test_validator_install_uses_same_public_assets_and_validator_only_docker() -
     assert "/absolute/path/to" not in validator
 
 
+def test_validator_configuration_packet_is_sanitized_and_release_exact() -> None:
+    packet = _text("docs/validator-configuration-packet.md")
+    operations = _text("docs/validator-operations.md")
+    source_manifest = _text("MANIFEST.in")
+
+    assert "validator-configuration-packet.md" in operations
+    assert "include docs/validator-configuration-packet.md" in source_manifest
+
+    for required in (
+        "https://github.com/Leonwenhao/dolores-autocurricula/releases/download/$TAG",
+        "https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/$TAG",
+        "https://github.com/Leonwenhao/dolores-autocurricula/releases/tag/$TAG",
+        "https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/tag/$TAG",
+        'export TAG="v0.2.0-rc.1"',
+        "hackerquest-handoff-0.2.0rc1.md",
+        "sha256sum --check --strict --ignore-missing",
+        "Ubuntu `24.04 LTS` `amd64`",
+        "CPython `3.11.15`",
+        "/opt/python/3.11.15/bin/python3.11",
+        "/etc/dolores/validator.env",
+        "DOLORES_HOLDOUT_SECRET=<64_OR_MORE_LOWERCASE_HEX_CHARACTERS>",
+        "BT_WALLET_NAME=<VALIDATOR_WALLET_NAME>",
+        "BT_WALLET_HOTKEY=<VALIDATOR_HOTKEY_NAME>",
+        "/etc/systemd/system/dolores-validator.service",
+        "/etc/systemd/system/dolores-validator.timer",
+        "dolores-verifier-pytest:0.2.0rc1",
+        "--network test",
+        "--netuid 523",
+        "--chain dry-run",
+        "--panel-mode mock",
+        "executed=true",
+        "containerized=true",
+        "Safe to share after review:",
+        "Never share:",
+        "real systemd behavior",
+        "`PENDING-HUMAN`",
+    ):
+        assert required in packet
+
+    for forbidden in (
+        "DOLORES_ALLOW_EXTRINSICS",
+        "--allow-extrinsics",
+        "--chain live",
+        "--miner-endpoints",
+        "DOLORES_REPO=",
+        "PYTHONPATH=",
+    ):
+        assert forbidden not in packet
+
+
 def test_quickstart_contains_exact_unsigned_commands_and_expected_outputs() -> None:
     quickstart = _text("docs/hackerquest-miner-quickstart.md")
 

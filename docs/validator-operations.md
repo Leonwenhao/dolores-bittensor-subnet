@@ -8,6 +8,12 @@ The validator machine requires the approved subnet `validator` extra, Docker,
 the immutable verifier image, a validator hotkey, and a private holdout secret.
 The default mock panel makes no paid provider calls.
 
+Use the sanitized
+[`validator configuration packet`](validator-configuration-packet.md) as the
+copy-ready release, environment, service, and evidence worksheet. Keep all
+wallet and holdout values in the operator's terminal and protected environment
+file.
+
 ## 1. Install and isolate the service
 
 Use a dedicated Ubuntu 24.04 LTS amd64 host and non-root `dolores-validator`

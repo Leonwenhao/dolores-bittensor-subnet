@@ -336,6 +336,8 @@ def build_parser() -> argparse.ArgumentParser:
     health.add_argument("--host", default="127.0.0.1")
     health.add_argument("--port", type=int, default=8091)
     health.add_argument("--timeout", type=float, default=2.0)
+    health.add_argument("--attempts", type=int, default=1)
+    health.add_argument("--retry-delay", type=float, default=0.0)
     health.set_defaults(handler=health_command)
     return parser
 
@@ -929,14 +931,24 @@ def serve_command(args: argparse.Namespace) -> int:
 
 def health_command(args: argparse.Namespace) -> int:
     port = require_port(args.port)
-    try:
-        with socket.create_connection((args.host, port), timeout=args.timeout):
-            pass
-    except OSError as exc:
-        print(f"healthy=false endpoint={args.host}:{port} reason={exc}")
-        return 1
-    print(f"healthy=true endpoint={args.host}:{port}")
-    return 0
+    attempts = _require_doctor_attempts(args.attempts)
+    retry_delay = _require_doctor_retry_delay(args.retry_delay)
+    for attempt in range(1, attempts + 1):
+        try:
+            with socket.create_connection((args.host, port), timeout=args.timeout):
+                pass
+        except OSError:
+            if attempt < attempts:
+                time.sleep(retry_delay)
+                continue
+            print(
+                f"healthy=false endpoint={args.host}:{port} "
+                f"attempts_used={attempt} reason=tcp_unreachable"
+            )
+            return 1
+        print(f"healthy=true endpoint={args.host}:{port} attempts_used={attempt}")
+        return 0
+    raise AssertionError("health attempts loop exited unexpectedly")
 
 
 def validator_blacklist(*, allowed_hotkeys: frozenset[str], allow_any_signed: bool):

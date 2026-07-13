@@ -48,16 +48,19 @@ Base URL:
 | External release manifest | `dolores-bittensor-subnet-0.2.0rc1-release-manifest.md` |
 | Checksum sidecar | `dolores-bittensor-subnet-0.2.0rc1-SHA256SUMS` |
 | External provenance | `dolores-bittensor-subnet-0.2.0rc1-provenance.json` |
+| Clean-VPS rehearsal receipt | `dolores-bittensor-subnet-0.2.0rc1-vps-rehearsal.md` |
 | Exact external checklist | `dolores-bittensor-subnet-0.2.0rc1-cohort-checklist.md` |
 | Participant handoff | `hackerquest-handoff-0.2.0rc1.md` |
 
 The external assets are generated in a non-circular order after one final subnet
-source commit is frozen and two independent builds match byte-for-byte:
-payload/checksum/provenance material, exact checklist, external manifest, then
-the participant handoff. The checksum sidecars cover primary payloads without
-self-listing. The final handoff records the sidecar, manifest, provenance, and
-checklist digests but never its own digest; GitHub's immutable release-asset
-digest anchors the downloaded handoff itself.
+source commit is frozen and two independent builds match byte-for-byte. First,
+primary payload/checksum/provenance material and the engine manifest become
+public and are re-downloaded. A separately approved clean VPS consumes that
+public trust set and produces the sanitized rehearsal receipt. Then the exact
+checklist pins the receipt, the subnet manifest pins the checklist, and the
+participant handoff pins both manifests, the receipt, sidecars, provenance, and
+checklist. No document lists its own digest; GitHub's release-asset digest
+anchors the downloaded handoff itself.
 
 ## Runtime and dependency contract
 
@@ -74,6 +77,10 @@ digest anchors the downloaded handoff itself.
 The miner base install does not include Docker, DuckDB, PyArrow, Streamlit,
 Fireworks credentials, a solver panel, or validator-only dependencies. Docker
 verification and the secret-keyed validator holdout run only on the validator.
+The disposable first-party proof may temporarily colocate both service accounts
+under the exact public `docs/vps-rehearsal.md` profile. Its manual endpoint,
+chain-off commands, and drop-ins are not the participant topology or metagraph
+cohort evidence, and their removal is part of the receipt.
 
 Verifier image identity is platform-scoped. The external manifest must record
 the packaged Dockerfile SHA-256, base-image digest, host architecture, and the

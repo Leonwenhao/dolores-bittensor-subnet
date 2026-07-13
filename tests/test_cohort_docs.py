@@ -226,6 +226,51 @@ def test_validator_configuration_packet_is_sanitized_and_release_exact() -> None
         assert forbidden not in packet
 
 
+def test_chain_neutral_vps_rehearsal_is_public_asset_only_and_bounded() -> None:
+    rehearsal = _text("docs/vps-rehearsal.md")
+    manifest = _text("MANIFEST.in")
+
+    for required in (
+        "Ubuntu 24.04 LTS",
+        "amd64",
+        "docs/vps-rehearsal.md",
+        "dolores-miner-chain-neutral-rehearsal.conf",
+        "dolores-validator-chain-neutral-rehearsal.conf",
+        "DOLORES_REHEARSAL_MINER_ENDPOINT",
+        "dolores-validator probe-wire",
+        '"chain_mode": "off"',
+        "dolores-validator replay",
+        "PrivateTmp=true",
+        "TMPDIR=/run/dolores-validator",
+        "systemctl enable --now dolores-validator.timer",
+        "DropInPaths",
+        "registration=not_executed",
+        "axon_publish=skipped reason=no_publish_flag",
+        "No `scp`",
+        "no chain write is authorized",
+        "never external-miner or cohort evidence",
+    ):
+        assert required in rehearsal
+
+    for required in (
+        "include deploy/systemd/dolores-miner-chain-neutral-rehearsal.conf",
+        "include deploy/systemd/dolores-validator-chain-neutral-rehearsal.conf",
+        "include docs/vps-rehearsal.md",
+    ):
+        assert required in manifest
+
+    for forbidden in (
+        "  --execute \\",
+        "  --confirm REGISTER-TESTNET-523",
+        "  --publish \\",
+        "--chain live",
+        "--allow-extrinsics",
+        "--allow-provider-spend",
+        "--allow-commit-reveal",
+    ):
+        assert forbidden not in rehearsal
+
+
 def test_quickstart_contains_exact_unsigned_commands_and_expected_outputs() -> None:
     quickstart = _text("docs/hackerquest-miner-quickstart.md")
 
@@ -238,7 +283,7 @@ def test_quickstart_contains_exact_unsigned_commands_and_expected_outputs() -> N
         "dolores-miner serve \\",
         "axon_publish=skipped reason=no_publish_flag",
         "health --host 127.0.0.1 --port 8091",
-        "healthy=true endpoint=127.0.0.1:8091",
+        "healthy=true endpoint=127.0.0.1:8091 attempts_used=1",
         "sudo systemctl enable --now dolores-miner.service",
         "sudo systemctl restart dolores-miner.service",
         "sudo journalctl -u dolores-miner.service --no-pager -n 100",

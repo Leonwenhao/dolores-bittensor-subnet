@@ -21,12 +21,18 @@ from dolores_subnet.config import (
     DEFAULT_QUOTA,
     LOCALNET_ALT_NETWORK,
     LOCALNET_NETWORK,
+    MAX_RESPONSE_BYTES,
     Mode,
     SubnetConfig,
     parse_mode,
 )
 from dolores_subnet.endpoints import require_cohort_target
-from dolores_subnet.epoch import EpochCompletionError, repair_jsonl_tail, run_epoch
+from dolores_subnet.epoch import (
+    EpochCompletionError,
+    assert_replay_matches,
+    repair_jsonl_tail,
+    run_epoch,
+)
 from dolores_subnet.gates import GateContext
 from dolores_subnet.packaging import loads_wire_json
 from dolores_subnet.validator_state import ValidatorStateStore
@@ -47,12 +53,31 @@ def build_parser() -> argparse.ArgumentParser:
     _health_args(health)
     health.set_defaults(handler=health_command)
 
+    probe_wire = subparsers.add_parser(
+        "probe-wire",
+        help="send one signed quota-zero request to explicit chain-neutral endpoints",
+    )
+    probe_wire.add_argument("--miner-endpoints", required=True)
+    probe_wire.add_argument("--wallet.name", dest="wallet_name", required=True)
+    probe_wire.add_argument("--wallet.hotkey", dest="wallet_hotkey", required=True)
+    probe_wire.add_argument("--epoch", type=int, default=0)
+    probe_wire.add_argument("--timeout", type=float, default=10.0)
+    probe_wire.set_defaults(handler=probe_wire_command)
+
     recover = subparsers.add_parser(
         "recover-receipt",
         help="finish a weights-submitting epoch from its canonical completion marker",
     )
     recover.add_argument("--work", type=Path, required=True)
     recover.set_defaults(handler=recover_receipt_command)
+
+    replay = subparsers.add_parser(
+        "replay",
+        help="recheck archived score/weight derivation against stored receipts",
+    )
+    replay.add_argument("--work", type=Path, required=True)
+    replay.add_argument("--epoch", type=int, required=True)
+    replay.set_defaults(handler=replay_command)
 
     once = subparsers.add_parser("once", help="run the legacy offline fixture validator")
     once.add_argument("--submissions", type=Path, required=True)
@@ -90,14 +115,16 @@ def _runtime_args(parser: argparse.ArgumentParser) -> None:
 def _health_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--mode",
-        choices=[Mode.LOCALNET.value, Mode.TESTNET.value],
+        choices=[Mode.WIRE.value, Mode.LOCALNET.value, Mode.TESTNET.value],
         default=Mode.TESTNET.value,
     )
     parser.add_argument("--work", type=Path, required=True)
     parser.add_argument("--wallet.name", dest="wallet_name", required=True)
     parser.add_argument("--wallet.hotkey", dest="wallet_hotkey", required=True)
+    parser.add_argument("--miner-endpoints", default="")
     parser.add_argument("--network")
     parser.add_argument("--netuid", type=int)
+    parser.add_argument("--chain", choices=["off", "dry-run"], default="dry-run")
     parser.add_argument(
         "--probe-wire",
         action=argparse.BooleanOptionalAction,
@@ -199,6 +226,16 @@ def _validate_tick_target(args: argparse.Namespace, mode: Mode) -> None:
             raise ValueError("wire tick requires --miner-endpoints")
         if args.chain != "off":
             raise ValueError("wire tick requires --chain off")
+        if args.network is not None or args.netuid is not None:
+            raise ValueError("wire tick forbids --network and --netuid")
+        if any(
+            (
+                getattr(args, "allow_extrinsics", False),
+                getattr(args, "allow_commit_reveal", False),
+                bool(getattr(args, "confirm_live", "")),
+            )
+        ):
+            raise ValueError("wire tick forbids live-chain authorization flags")
     elif mode is Mode.LOCALNET:
         _require_localnet_target(args.network, args.netuid, operation="localnet tick")
         if args.chain == "off" and not args.miner_endpoints:
@@ -261,32 +298,46 @@ def health_command(args: argparse.Namespace) -> int:
     )
     state = _state_store(cfg).read()
     docker = _docker_health(cfg.verifier_image)
-    chain = SubtensorChain(
-        network=cfg.network or "",
-        netuid=cfg.netuid,
-        wallet_name=cfg.wallet_name,
-        wallet_hotkey=cfg.wallet_hotkey,
-        publish="dry-run",
-    )
-    try:
-        chain_state = chain.preflight()
-        endpoints = chain.miner_endpoints() if chain_state.get("mode") != "error" else []
-    except Exception as exc:  # noqa: BLE001 - health must emit structured failure.
+    endpoint_source = "manual_wire" if mode is Mode.WIRE else "metagraph"
+    if mode is Mode.WIRE:
         chain_state = {
-            "mode": "error",
-            "reason": "rpc_or_wallet_unreachable",
-            "error_type": type(exc).__name__,
+            "mode": "off",
+            "reason": "manual_wire_chain_neutral",
         }
-        endpoints = []
+        endpoints = _manual_wire_endpoint_rows(
+            wallet_name=cfg.wallet_name,
+            wallet_hotkey=cfg.wallet_hotkey,
+            values=args.miner_endpoints,
+        )
+    else:
+        chain = SubtensorChain(
+            network=cfg.network or "",
+            netuid=cfg.netuid,
+            wallet_name=cfg.wallet_name,
+            wallet_hotkey=cfg.wallet_hotkey,
+            publish="dry-run",
+        )
+        try:
+            chain_state = chain.preflight()
+            endpoints = chain.miner_endpoints() if chain_state.get("mode") != "error" else []
+        except Exception as exc:  # noqa: BLE001 - health must emit structured failure.
+            chain_state = {
+                "mode": "error",
+                "reason": "rpc_or_wallet_unreachable",
+                "error_type": type(exc).__name__,
+            }
+            endpoints = []
     signed_reachable: int | None = None
     probe_error_type: str | None = None
     if args.probe_wire and endpoints:
         try:
             signed_reachable = _signed_health_probe(
-                cfg=cfg,
+                wallet_name=cfg.wallet_name,
+                wallet_hotkey=cfg.wallet_hotkey,
                 endpoint_rows=endpoints,
                 epoch_id=state.next_epoch_id,
                 timeout=args.timeout,
+                max_response_bytes=cfg.max_response_bytes,
             )
         except Exception as exc:  # noqa: BLE001 - never leak wallet/path details.
             signed_reachable = 0
@@ -332,7 +383,10 @@ def health_command(args: argparse.Namespace) -> int:
         "docker": docker,
         "chain": chain_state,
         "blocks_since_validator_update": chain_state.get("blocks_since_last_update"),
-        "discovered_public_miners": len(endpoints),
+        "endpoint_source": endpoint_source,
+        "miner_endpoint_count": len(endpoints),
+        "manual_endpoints": len(endpoints) if mode is Mode.WIRE else 0,
+        "discovered_public_miners": 0 if mode is Mode.WIRE else len(endpoints),
         "signed_probe_requested": bool(args.probe_wire),
         "signed_reachable_miners": signed_reachable,
         "reachable_miner_count": signed_reachable,
@@ -344,12 +398,90 @@ def health_command(args: argparse.Namespace) -> int:
 
 
 def _validate_health_target(args: argparse.Namespace, mode: Mode) -> None:
+    miner_endpoints = str(getattr(args, "miner_endpoints", "") or "")
+    chain = str(getattr(args, "chain", "dry-run") or "")
+    if mode is Mode.WIRE:
+        if not miner_endpoints:
+            raise ValueError("wire health requires --miner-endpoints")
+        if chain != "off":
+            raise ValueError("wire health requires --chain off")
+        if args.network is not None or args.netuid is not None:
+            raise ValueError("wire health forbids --network and --netuid")
+        return
+    if miner_endpoints:
+        raise ValueError("chain health requires metagraph discovery; manual endpoints forbidden")
+    if chain == "off":
+        raise ValueError("chain health forbids --chain off")
     if args.network is None or args.netuid is None:
         raise ValueError("health requires explicit --network and --netuid")
     if mode is Mode.TESTNET:
         require_cohort_target(args.network, args.netuid)
     elif mode is Mode.LOCALNET:
         _require_localnet_target(args.network, args.netuid, operation="localnet health")
+
+
+def probe_wire_command(args: argparse.Namespace) -> int:
+    if args.epoch < 0:
+        raise ValueError("probe-wire epoch must be non-negative")
+    if args.timeout <= 0:
+        raise ValueError("probe-wire timeout must be positive")
+    endpoints = _manual_wire_endpoint_rows(
+        wallet_name=args.wallet_name,
+        wallet_hotkey=args.wallet_hotkey,
+        values=args.miner_endpoints,
+    )
+    reachable = _signed_health_probe(
+        wallet_name=args.wallet_name,
+        wallet_hotkey=args.wallet_hotkey,
+        endpoint_rows=endpoints,
+        epoch_id=args.epoch,
+        timeout=args.timeout,
+    )
+    ok = reachable == len(endpoints)
+    print(
+        json.dumps(
+            {
+                "ok": ok,
+                "mode": "wire",
+                "chain_mode": "off",
+                "endpoint_source": "manual",
+                "endpoint_count": len(endpoints),
+                "signed_reachable": reachable,
+                "quota": 0,
+                "metagraph_discovery": False,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0 if ok else 1
+
+
+def _manual_wire_endpoint_rows(
+    *,
+    wallet_name: str,
+    wallet_hotkey: str,
+    values: str,
+) -> list[dict[str, Any]]:
+    import bittensor as bt
+
+    from dolores_subnet.wire import parse_miner_endpoints
+
+    wallet = bt.Wallet(name=wallet_name, hotkey=wallet_hotkey)
+    endpoints = parse_miner_endpoints(
+        values,
+        default_coldkey=wallet.coldkeypub.ss58_address,
+    )
+    return [
+        {
+            "host": endpoint.host,
+            "port": endpoint.port,
+            "hotkey": endpoint.hotkey,
+            "uid": endpoint.uid,
+            "coldkey": endpoint.coldkey,
+        }
+        for endpoint in endpoints
+    ]
 
 
 def _require_localnet_target(
@@ -373,16 +505,18 @@ def _require_localnet_target(
 
 def _signed_health_probe(
     *,
-    cfg: SubnetConfig,
+    wallet_name: str,
+    wallet_hotkey: str,
     endpoint_rows: list[dict[str, Any]],
     epoch_id: int,
     timeout: float,
+    max_response_bytes: int = MAX_RESPONSE_BYTES,
 ) -> int:
     import bittensor as bt
 
     from dolores_subnet.wire import MinerEndpoint, query_miners
 
-    wallet = bt.Wallet(name=cfg.wallet_name, hotkey=cfg.wallet_hotkey)
+    wallet = bt.Wallet(name=wallet_name, hotkey=wallet_hotkey)
     endpoints = [
         MinerEndpoint(
             host=str(item["host"]),
@@ -399,7 +533,7 @@ def _signed_health_probe(
         epoch_id=epoch_id,
         quota=0,
         timeout=timeout,
-        max_response_bytes=cfg.max_response_bytes,
+        max_response_bytes=max_response_bytes,
     )
     return sum(1 for miner in miners if not miner.terminal_status)
 
@@ -437,6 +571,15 @@ def recover_receipt_command(args: argparse.Namespace) -> int:
     store = ValidatorStateStore(archive_dir / "validator_runtime")
     state = store.recover_receipt()
     print(json.dumps(state.to_dict(), indent=2, sort_keys=True))
+    return 0
+
+
+def replay_command(args: argparse.Namespace) -> int:
+    if args.epoch < 1:
+        raise ValueError("replay epoch must be positive")
+    cfg = SubnetConfig.from_env(mode=Mode.OFFLINE, work_dir=args.work)
+    assert_replay_matches(cfg, epoch_id=args.epoch)
+    print(f"REPLAY OK epoch_id={args.epoch}")
     return 0
 
 

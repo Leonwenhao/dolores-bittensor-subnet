@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -76,6 +77,61 @@ def _snapshot(
         balance_rao=balance_rao,
         metagraph=SimpleNamespace(hotkeys=hotkeys, uids=uids, axons=axons),
     )
+
+
+def test_health_retries_until_listener_is_ready(monkeypatch, capsys) -> None:
+    attempts = 0
+    sleeps: list[float] = []
+
+    def fake_connect(address, *, timeout):  # noqa: ANN001
+        nonlocal attempts
+        assert address == ("127.0.0.1", 8091)
+        assert timeout == 0.25
+        attempts += 1
+        if attempts < 3:
+            raise ConnectionRefusedError("listener starting")
+        return nullcontext()
+
+    monkeypatch.setattr(miner_cli.socket, "create_connection", fake_connect)
+    monkeypatch.setattr(miner_cli.time, "sleep", sleeps.append)
+
+    result = miner_cli.main(
+        [
+            "health",
+            "--timeout",
+            "0.25",
+            "--attempts",
+            "3",
+            "--retry-delay",
+            "0.5",
+        ]
+    )
+
+    assert result == 0
+    assert attempts == 3
+    assert sleeps == [0.5, 0.5]
+    assert capsys.readouterr().out.strip() == (
+        "healthy=true endpoint=127.0.0.1:8091 attempts_used=3"
+    )
+
+
+def test_health_exhaustion_is_stable_and_sanitized(monkeypatch, capsys) -> None:
+    def fail_connect(address, *, timeout):  # noqa: ANN001
+        del address, timeout
+        raise OSError("host-specific private detail")
+
+    monkeypatch.setattr(miner_cli.socket, "create_connection", fail_connect)
+    monkeypatch.setattr(miner_cli.time, "sleep", lambda _: None)
+
+    result = miner_cli.main(["health", "--attempts", "2", "--retry-delay", "0"])
+
+    output = capsys.readouterr().out.strip()
+    assert result == 1
+    assert output == (
+        "healthy=false endpoint=127.0.0.1:8091 "
+        "attempts_used=2 reason=tcp_unreachable"
+    )
+    assert "private detail" not in output
 
 
 def _patch_doctor_dependencies(

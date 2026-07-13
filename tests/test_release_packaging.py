@@ -167,10 +167,13 @@ def test_source_manifest_contains_public_ops_assets_and_excludes_internal_notes(
 
     for required in (
         "include deploy/systemd/dolores-miner.service",
+        "include deploy/systemd/dolores-miner-chain-neutral-rehearsal.conf",
         "include deploy/systemd/dolores-validator.service",
         "include deploy/systemd/dolores-validator.timer",
+        "include deploy/systemd/dolores-validator-chain-neutral-rehearsal.conf",
         "include docs/hackerquest-miner-quickstart.md",
         "include docs/validator-operations.md",
+        "include docs/vps-rehearsal.md",
         "include docs/cohort-release-checklist.md",
     ):
         assert required in lines

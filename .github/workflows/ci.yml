@@ -282,11 +282,33 @@ jobs:
           source_root=/tmp/subnet-sdist-source/dolores_bittensor_subnet-0.2.0rc1
           rm -rf /tmp/systemd-verify
           install -d /tmp/systemd-verify
-          install -m 0644 "$source_root"/deploy/systemd/* /tmp/systemd-verify/
+          install -m 0644 \
+            "$source_root"/deploy/systemd/dolores-miner.service \
+            "$source_root"/deploy/systemd/dolores-validator.service \
+            "$source_root"/deploy/systemd/dolores-validator.timer \
+            /tmp/systemd-verify/
           sed -i -E \
             's#^(ExecStart(Post)?=)/opt/[^ ]+#\1/bin/true#; s/^User=.*/User=root/; s/^Group=.*/Group=root/; s/^SupplementaryGroups=.*/SupplementaryGroups=root/' \
             /tmp/systemd-verify/*.service
-          systemd-analyze verify \
-            /tmp/systemd-verify/dolores-miner.service \
-            /tmp/systemd-verify/dolores-validator.service \
-            /tmp/systemd-verify/dolores-validator.timer
+          SYSTEMD_UNIT_PATH=/tmp/systemd-verify:/usr/lib/systemd/system \
+            systemd-analyze verify \
+              dolores-miner.service \
+              dolores-validator.service \
+              dolores-validator.timer
+          install -d \
+            /tmp/systemd-verify/dolores-miner.service.d \
+            /tmp/systemd-verify/dolores-validator.service.d
+          install -m 0644 \
+            "$source_root"/deploy/systemd/dolores-miner-chain-neutral-rehearsal.conf \
+            /tmp/systemd-verify/dolores-miner.service.d/90-chain-neutral-rehearsal.conf
+          install -m 0644 \
+            "$source_root"/deploy/systemd/dolores-validator-chain-neutral-rehearsal.conf \
+            /tmp/systemd-verify/dolores-validator.service.d/90-chain-neutral-rehearsal.conf
+          sed -i -E \
+            's#^(ExecStart(Post)?=)/opt/[^ ]+#\1/bin/true#' \
+            /tmp/systemd-verify/*.service.d/*.conf
+          SYSTEMD_UNIT_PATH=/tmp/systemd-verify:/usr/lib/systemd/system \
+            systemd-analyze verify \
+              dolores-miner.service \
+              dolores-validator.service \
+              dolores-validator.timer

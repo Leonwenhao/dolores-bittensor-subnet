@@ -9,6 +9,10 @@ def _unit(name: str) -> str:
     return (ROOT / "deploy" / "systemd" / name).read_text(encoding="utf-8")
 
 
+def _rehearsal(name: str) -> str:
+    return (ROOT / "deploy" / "systemd" / name).read_text(encoding="utf-8")
+
+
 def test_miner_unit_is_non_root_supervised_and_never_republishes() -> None:
     unit = _unit("dolores-miner.service")
     start = next(line for line in unit.splitlines() if line.startswith("ExecStart="))
@@ -68,3 +72,38 @@ def test_validator_timer_waits_after_completion_without_missed_run_catch_up() ->
     assert "OnUnitInactiveSec=" in timer
     assert "Persistent=" not in timer
     assert "OnUnitActiveSec=" not in timer
+
+
+def test_miner_rehearsal_changes_only_post_start_audit() -> None:
+    drop_in = _rehearsal("dolores-miner-chain-neutral-rehearsal.conf")
+    lines = drop_in.splitlines()
+
+    assert not any(line.startswith("ExecStart=") for line in lines)
+    assert sum(line.startswith("ExecStartPost=") for line in lines) == 2
+    assert "dolores-miner health" in drop_in
+    assert "127.0.0.1" in drop_in
+    assert "--attempts 12 --retry-delay 1" in drop_in
+    for forbidden in ("doctor", "--publish", "register", "serve_axon"):
+        assert forbidden not in drop_in
+
+
+def test_validator_rehearsal_is_signed_manual_wire_and_chain_off() -> None:
+    drop_in = _rehearsal("dolores-validator-chain-neutral-rehearsal.conf")
+
+    assert drop_in.count("ExecStart=") == 2
+    assert drop_in.count("ExecStartPost=") == 2
+    assert "dolores-validator tick --mode wire" in drop_in
+    assert "dolores-validator health --mode wire" in drop_in
+    assert "EnvironmentFile=/etc/dolores/rehearsal.env" in drop_in
+    assert drop_in.count("--miner-endpoints ${DOLORES_REHEARSAL_MINER_ENDPOINT}") == 2
+    assert drop_in.count("--chain off") == 2
+    assert "--panel-mode mock" in drop_in
+    for forbidden in (
+        "--network test",
+        "--netuid 523",
+        "--chain dry-run",
+        "--chain live",
+        "--allow-extrinsics",
+        "--allow-provider-spend",
+    ):
+        assert forbidden not in drop_in

@@ -8,7 +8,7 @@ import pytest
 
 from dolores_subnet import validator_cli
 from dolores_subnet.atomic import atomic_write_json
-from dolores_subnet.chain import ChainWeightResult
+from dolores_subnet.chain import ChainWeightResult, NullChain
 from dolores_subnet.config import (
     DEFAULT_QUOTA,
     LOCALNET_ALT_NETWORK,
@@ -149,7 +149,8 @@ def test_two_wire_ticks_allocate_monotonic_epochs_under_lock(
         return [SimpleNamespace(hotkey="miner", uid=1, terminal_status=None)]
 
     def fake_run(cfg, miners, *, epoch_id, quota, chain_client, phase_hook):  # noqa: ANN001
-        del miners, quota, chain_client
+        del miners, quota
+        assert isinstance(chain_client, NullChain)
         phase_hook("evaluating")
         phase_hook("weights_submitting")
         artifact = cfg.weights_path(epoch_id)
@@ -208,6 +209,74 @@ def test_two_wire_ticks_allocate_monotonic_epochs_under_lock(
     assert "epoch_id=2" in capsys.readouterr().out
 
 
+def test_wire_tick_forbids_chain_target_before_chain_construction(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    def fail_chain(*args, **kwargs):  # noqa: ANN002, ANN003
+        del args, kwargs
+        raise AssertionError("wire target validation must run before chain construction")
+
+    monkeypatch.setattr(validator_cli, "build_chain_client", fail_chain)
+    result = validator_cli.main(
+        [
+            "tick",
+            "--mode",
+            "wire",
+            "--work",
+            str(tmp_path),
+            "--wallet.name",
+            "wallet",
+            "--wallet.hotkey",
+            "validator",
+            "--chain",
+            "off",
+            "--miner-endpoints",
+            "127.0.0.1:8091:hotkey",
+            "--network",
+            "test",
+            "--netuid",
+            "523",
+        ]
+    )
+
+    assert result == 2
+    assert "forbids --network and --netuid" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "authorization_args",
+    [
+        ["--allow-extrinsics"],
+        ["--allow-commit-reveal"],
+        ["--confirm-live", "LIVE-TESTNET-523"],
+    ],
+)
+def test_wire_tick_forbids_live_chain_authorization_flags(
+    tmp_path, authorization_args, capsys  # noqa: ANN001
+) -> None:
+    result = validator_cli.main(
+        [
+            "tick",
+            "--mode",
+            "wire",
+            "--work",
+            str(tmp_path),
+            "--wallet.name",
+            "wallet",
+            "--wallet.hotkey",
+            "validator",
+            "--chain",
+            "off",
+            "--miner-endpoints",
+            "127.0.0.1:8091:hotkey",
+            *authorization_args,
+        ]
+    )
+
+    assert result == 2
+    assert "forbids live-chain authorization flags" in capsys.readouterr().err
+
+
 def test_recover_parser_requires_explicit_work() -> None:
     args = validator_cli.build_parser().parse_args(
         ["recover-receipt", "--work", str(Path("work/validator"))]
@@ -226,6 +295,37 @@ def test_recover_parser_rejects_arbitrary_receipt_path() -> None:
                 "/tmp/forged.json",
             ]
         )
+
+
+def test_installed_replay_command_uses_archived_epoch(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_replay(cfg, *, epoch_id):  # noqa: ANN001
+        seen["work_dir"] = cfg.work_dir
+        seen["epoch_id"] = epoch_id
+
+    monkeypatch.setattr(validator_cli, "assert_replay_matches", fake_replay)
+
+    assert (
+        validator_cli.main(
+            ["replay", "--work", str(tmp_path), "--epoch", "2"]
+        )
+        == 0
+    )
+    assert seen == {"work_dir": tmp_path, "epoch_id": 2}
+    assert "REPLAY OK epoch_id=2" in capsys.readouterr().out
+
+
+def test_installed_replay_rejects_nonpositive_epoch(tmp_path, capsys) -> None:
+    assert (
+        validator_cli.main(
+            ["replay", "--work", str(tmp_path), "--epoch", "0"]
+        )
+        == 2
+    )
+    assert "replay epoch must be positive" in capsys.readouterr().err
 
 
 def test_health_is_structured_and_never_prints_holdout_secret(
@@ -327,6 +427,165 @@ def test_health_fails_closed_when_signed_probe_is_disabled(
     assert result == 1
     assert payload["reachable_miner_count"] is None
     assert "signed_reachability_probe_disabled" in payload["degraded_conditions"]
+
+
+def test_wire_health_is_signed_chain_neutral_and_never_constructs_subtensor(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("DOLORES_HOLDOUT_SECRET", "local-test-secret")
+    monkeypatch.setattr(
+        validator_cli,
+        "_docker_health",
+        lambda image: {"ok": True, "reason": "ok", "image": image},
+    )
+    monkeypatch.setattr(
+        validator_cli,
+        "_manual_wire_endpoint_rows",
+        lambda **kwargs: [
+            {
+                "host": "127.0.0.1",
+                "port": 8091,
+                "hotkey": "miner",
+                "uid": 0,
+                "coldkey": "coldkey",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        validator_cli,
+        "_signed_health_probe",
+        lambda **kwargs: 1,
+    )
+
+    class ForbiddenChain:
+        def __init__(self, **kwargs):
+            del kwargs
+            raise AssertionError("wire health must not construct SubtensorChain")
+
+    monkeypatch.setattr(validator_cli, "SubtensorChain", ForbiddenChain)
+    result = validator_cli.main(
+        [
+            "health",
+            "--mode",
+            "wire",
+            "--work",
+            str(tmp_path),
+            "--wallet.name",
+            "wallet",
+            "--wallet.hotkey",
+            "validator",
+            "--miner-endpoints",
+            "127.0.0.1:8091:miner:coldkey",
+            "--chain",
+            "off",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert result == 0
+    assert payload["ok"] is True
+    assert payload["chain"] == {
+        "mode": "off",
+        "reason": "manual_wire_chain_neutral",
+    }
+    assert payload["endpoint_source"] == "manual_wire"
+    assert payload["manual_endpoints"] == 1
+    assert payload["discovered_public_miners"] == 0
+    assert payload["signed_reachable_miners"] == 1
+    assert payload["degraded_conditions"] == []
+
+
+def test_wire_health_requires_manual_endpoints_and_chain_off(capsys, tmp_path) -> None:
+    common = [
+        "health",
+        "--mode",
+        "wire",
+        "--work",
+        str(tmp_path),
+        "--wallet.name",
+        "wallet",
+        "--wallet.hotkey",
+        "validator",
+    ]
+    assert validator_cli.main(common) == 2
+    assert "requires --miner-endpoints" in capsys.readouterr().err
+
+    assert validator_cli.main(common + ["--miner-endpoints", "127.0.0.1:8091:miner"]) == 2
+    assert "requires --chain off" in capsys.readouterr().err
+
+
+def test_chain_health_forbids_manual_endpoint_injection(capsys, tmp_path) -> None:
+    result = validator_cli.main(
+        [
+            "health",
+            "--work",
+            str(tmp_path),
+            "--wallet.name",
+            "wallet",
+            "--wallet.hotkey",
+            "validator",
+            "--network",
+            "test",
+            "--netuid",
+            "523",
+            "--miner-endpoints",
+            "127.0.0.1:8091:miner",
+        ]
+    )
+
+    assert result == 2
+    assert "manual endpoints forbidden" in capsys.readouterr().err
+
+
+def test_probe_wire_is_quota_zero_chain_off_and_sanitized(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(
+        validator_cli,
+        "_manual_wire_endpoint_rows",
+        lambda **kwargs: [
+            {
+                "host": "203.0.113.10",
+                "port": 8091,
+                "hotkey": "miner",
+                "uid": 0,
+                "coldkey": "coldkey",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        validator_cli,
+        "_signed_health_probe",
+        lambda **kwargs: 1,
+    )
+
+    result = validator_cli.main(
+        [
+            "probe-wire",
+            "--miner-endpoints",
+            "203.0.113.10:8091:miner:coldkey",
+            "--wallet.name",
+            "wallet",
+            "--wallet.hotkey",
+            "validator",
+        ]
+    )
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+
+    assert result == 0
+    assert payload == {
+        "chain_mode": "off",
+        "endpoint_count": 1,
+        "endpoint_source": "manual",
+        "metagraph_discovery": False,
+        "mode": "wire",
+        "ok": True,
+        "quota": 0,
+        "signed_reachable": 1,
+    }
+    assert "wallet" not in output
+    assert "203.0.113.10" not in output
 
 
 def test_localnet_health_rejects_public_test_network_before_any_chain_call(

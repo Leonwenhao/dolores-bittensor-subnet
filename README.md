@@ -99,6 +99,10 @@ allowlisted validator hotkey, `--network test --netuid 523`, and exact metagraph
 read-back. Testnet validator ticks discover miners from the metagraph; manual
 endpoint injection is rejected in that mode.
 
+The separately packaged `probe-wire` and wire-mode health surfaces accept only
+explicit manual endpoints with chain mode off. They exist for signed,
+first-party release rehearsals and are not testnet discovery or cohort evidence.
+
 The validator installs the `validator` extra, builds
 `dolores-verifier-pytest:0.2.0rc1` from a resource packaged inside the engine,
 and runs it as a non-root user with no network, a read-only root and task mount,
@@ -119,6 +123,12 @@ local listener, inbound public TCP, and exact published-axon read-back. A system
 supervisor may schedule ticks; the application does not hide lifecycle or retry
 state inside a second daemon.
 
+`dolores-validator replay` deterministically rechecks archived score and weight
+derivation against stored receipts. It does not rerun task verification or the
+private holdout; the VPS runbook checks those receipt fields separately. The
+exact disposable Ubuntu/systemd proof, including removable chain-neutral
+drop-ins, is documented in `docs/vps-rehearsal.md`.
+
 Live weights remain protected by four independent gates and commit-reveal
 uncertainty remains fail-closed. Paid solver-panel calibration is off by default
 and is not required for the controlled cohort.
@@ -131,6 +141,7 @@ and is not required for the controlled cohort.
 - `docs/architecture.md` — implemented design and security boundaries
 - `docs/demo.md` — local RC smoke checks and operator dry-run commands
 - `docs/cohort-release-checklist.md` — release and external-proof gates
+- `docs/vps-rehearsal.md` — public-asset-only chain-neutral systemd proof
 - `docs/testnet-status.md` — historical receipts and current chain snapshot
 
 ## Contributing and security

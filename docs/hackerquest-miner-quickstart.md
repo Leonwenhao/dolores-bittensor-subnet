@@ -375,7 +375,7 @@ sudo -u dolores-miner /opt/dolores-miner/venv/bin/dolores-miner \
 Expected output:
 
 ```text
-healthy=true endpoint=127.0.0.1:8091
+healthy=true endpoint=127.0.0.1:8091 attempts_used=1
 ```
 
 From a different machine, test inbound TCP reachability to the literal public
@@ -445,6 +445,11 @@ balance and metagraph queries; it never registers, publishes an axon, sets
 weights, reads wallet files, or prints wallet paths/selectors.
 
 ## 9. Install and verify the non-root systemd service
+
+This section is the post-publication participant path. The separate
+[`chain-neutral clean-VPS release rehearsal`](vps-rehearsal.md) uses a public,
+temporary drop-in before registration; it never changes the base unit and is
+not participant or cohort evidence.
 
 After exact publication succeeds, stop the foreground miner and exit the
 service-user shell. The published unit deliberately omits `--publish`; the

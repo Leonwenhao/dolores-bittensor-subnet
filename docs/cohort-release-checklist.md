@@ -124,7 +124,7 @@ These are local/configuration gates until publication is explicitly approved.
 | PASS | Public mode requires a globally routable IPv4 address and fixed external port. | Address-classification tests and configuration validation. |
 | PASS | Public mode rejects private, loopback, link-local, multicast, unspecified, and reserved addresses. | Positive and negative tests covering the rejected classes. |
 | PASS | Local rehearsal mode remains clearly separate and may use loopback/private addresses without being called public. | CLI/help and documentation review. |
-| PASS | Supported Ubuntu VPS deployment instructions use an installed release, not a private checkout. | Clean VPS rehearsal transcript or equivalent clean-machine evidence. |
+| PENDING-HUMAN | Supported Ubuntu VPS deployment instructions use an installed public release, not a private checkout, and the packaged chain-neutral drop-ins are removed after the proof. | Sanitized clean Ubuntu 24.04 AMD64 VPS receipt tied to `docs/vps-rehearsal.md`, public asset hashes, real systemd properties, and teardown read-back. |
 | PENDING-HUMAN | Supervisor configuration restarts the miner and preserves logs. | Supervisor validation and controlled restart evidence. |
 | PENDING-HUMAN | Health evidence covers supervised process state, local listener, exact metagraph publication, and authenticated reachability from the validator side. | Timestamped `systemctl status`/journal receipt, redacted complete `dolores-miner doctor` JSON, and `dolores-validator health --mode testnet --work /var/lib/dolores-validator --wallet.name <VALIDATOR_WALLET> --wallet.hotkey <VALIDATOR_HOTKEY> --network test --netuid 523` JSON. The default signed reply proves miner-process liveness at the metagraph-discovered endpoint; do not use `--no-probe-wire`. |
 
@@ -180,11 +180,18 @@ Nothing in this section is authorized by completion of the local gates.
 `STOP-LEON` is required before creating the engine remote, pushing either
 repository, publishing release artifacts, or creating tag `v0.2.0-rc.1`.
 
-Evidence required before approval:
+Evidence required in the staged publication decision:
 
 - every local gate above passes;
-- exact commits, artifact filenames, SHA-256 values, public URLs, and hosted-CI
-  URLs are listed in the immutable external manifest/checklist;
+- the first STOP names exact local commits, artifact filenames, byte sizes,
+  SHA-256 values, expected public targets, hosted-CI behavior, and rollback;
+- after that approved push, hosted CI passes on the exact public SHAs and every
+  uploaded primary asset is re-downloaded and verified before any evidence
+  manifest is rendered;
+- the engine manifest is rendered and separately approved/uploaded before the
+  clean-VPS rehearsal; the VPS receipt, this exact checklist, subnet manifest,
+  and handoff are rendered in that acyclic order and each later upload is
+  separately approved by exact filename, byte size, and SHA-256;
 - the operator explicitly accepts or rejects publication while private report
   receipt and triage remain `PENDING-HUMAN`;
 - rollback identifies how to withdraw/deprecate the release and return cohort

@@ -8,6 +8,11 @@ This packet configures a validator only for `network=test`, `netuid=523`, with
 `--chain dry-run --panel-mode mock`. It does not authorize a wallet action, axon
 publication, live weights, provider spend, VPS access, or participant contact.
 
+The pre-participant, chain-neutral, real-systemd validation profile is a
+different surface documented in [`vps-rehearsal.md`](vps-rehearsal.md). Manual
+endpoints from that disposable first-party proof never become public-testnet
+metagraph or cohort evidence.
+
 ## 1. Immutable release and trust path
 
 Use the two `v0.2.0-rc.1` GitHub Releases. Do not substitute a branch archive,
@@ -244,8 +249,11 @@ sudo systemctl show dolores-validator.timer --no-pager \
 
 After the external miner exists and read-only health succeeds, follow the exact
 enable, status, journal, failure, and restart procedure in the validator
-operations runbook. Do not weaken `ExecStartPost` to make pre-cohort health
-appear successful.
+operations runbook. Do not weaken `ExecStartPost` to make pre-cohort testnet
+health appear successful. The only pre-cohort exception is the packaged,
+separately approved `vps-rehearsal.md` profile: it visibly replaces both commands
+with signed manual-wire `--chain off` checks, records that this is first-party
+rehearsal evidence, and proves removal before the host is destroyed.
 
 Source review and `systemd-analyze verify` are not real-systemd proof. Keep the
 following status `PENDING-HUMAN` until a genuine clean Ubuntu 24.04 AMD64 VPS

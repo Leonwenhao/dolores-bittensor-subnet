@@ -2,8 +2,10 @@ include LICENSE
 include README.md
 include SECURITY.md
 include deploy/systemd/dolores-miner.service
+include deploy/systemd/dolores-miner-chain-neutral-rehearsal.conf
 include deploy/systemd/dolores-validator.service
 include deploy/systemd/dolores-validator.timer
+include deploy/systemd/dolores-validator-chain-neutral-rehearsal.conf
 include docs/architecture.md
 include docs/cohort-release-checklist.md
 include docs/demo.md
@@ -14,5 +16,6 @@ include docs/security-disclosure-packet.md
 include docs/testnet-status.md
 include docs/validator-configuration-packet.md
 include docs/validator-operations.md
+include docs/vps-rehearsal.md
 recursive-include docs/decisions *.md
 prune tests

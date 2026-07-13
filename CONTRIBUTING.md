@@ -16,8 +16,9 @@ and operational evidence.
 - Preserve the default Bittensor Axon verifier, response-payload signatures,
   required body-hash fields, endpoint policy, and four independent live-weight
   gates.
-- Keep public-testnet miner discovery metagraph-owned. Manual endpoints belong
-  only to explicit loopback/local test fixtures.
+- Keep public-testnet miner discovery metagraph-owned. Manual endpoints are
+  allowed only in `probe-wire` or wire-mode, chain-off first-party rehearsals
+  (loopback or an approved cross-host endpoint), never cohort/testnet discovery.
 - Keep generated or external task execution Docker-only and fail closed; never
   fall back to host execution.
 

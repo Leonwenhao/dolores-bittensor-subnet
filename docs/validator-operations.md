@@ -14,6 +14,11 @@ copy-ready release, environment, service, and evidence worksheet. Keep all
 wallet and holdout values in the operator's terminal and protected environment
 file.
 
+For the separately approved, disposable, first-party release rehearsal before a
+public cohort miner exists, use
+[`vps-rehearsal.md`](vps-rehearsal.md). Its temporary manual-wire drop-in is not
+the production testnet path and must be removed after the clean-host proof.
+
 ## 1. Install and isolate the service
 
 Use a dedicated Ubuntu 24.04 LTS amd64 host and non-root `dolores-validator`

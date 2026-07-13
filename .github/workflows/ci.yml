@@ -14,9 +14,9 @@ env:
   SETUPTOOLS_VERSION: "83.0.0"
   WHEEL_VERSION: "0.47.0"
   ENGINE_VERSION: 0.2.0rc1
-  ENGINE_SOURCE_COMMIT: 9a0a84a54887dd9021dfdc00c496aee0975fe427
-  ENGINE_WHEEL_SHA256: 3ac09c8cb857cd5fc81d23c70c77cf21c11efe745e80b6d5fc237ad359cd1ca4
-  ENGINE_SDIST_SHA256: 8df5dc74daf91831377d2bf52253ddcebb1bf4df0b705816228f138d9797342b
+  ENGINE_SOURCE_COMMIT: a832cfac214b946490dc4feeda40e2e4dd94e241
+  ENGINE_WHEEL_SHA256: 015f5f9cd047a4c2feabf7760ccb9d3f8ebf72aef65f658154b18ca80b72aeb1
+  ENGINE_SDIST_SHA256: 1acd013f76220e5d0c6cfbe63cf075940f03a7f2f0ece83e05837a2cccf29704
   ENGINE_WHEEL_URL: https://github.com/Leonwenhao/dolores-autocurricula/releases/download/v0.2.0-rc.1/dolores_autocurricula-0.2.0rc1-py3-none-any.whl
   ENGINE_SDIST_URL: https://github.com/Leonwenhao/dolores-autocurricula/releases/download/v0.2.0-rc.1/dolores_autocurricula-0.2.0rc1.tar.gz
   ENGINE_WHEEL: /tmp/dolores_autocurricula-0.2.0rc1-py3-none-any.whl

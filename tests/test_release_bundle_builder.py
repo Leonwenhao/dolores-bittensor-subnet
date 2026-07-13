@@ -364,7 +364,7 @@ def test_ci_uses_fixed_epoch_builder_and_independent_verification() -> None:
     )
     assert parsed["env"]["SOURCE_DATE_EPOCH"] == str(SOURCE_DATE_EPOCH)
     assert parsed["env"]["ENGINE_SOURCE_COMMIT"] == (
-        "9a0a84a54887dd9021dfdc00c496aee0975fe427"
+        "a832cfac214b946490dc4feeda40e2e4dd94e241"
     )
     run = assembly["run"]
     assert 'for copy in a b; do' in run

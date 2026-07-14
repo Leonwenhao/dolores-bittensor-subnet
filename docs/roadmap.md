@@ -3,7 +3,7 @@
 The immediate objective is a safe, controlled cohort with one to three known
 HackerQuest miners on Bittensor public testnet netuid `523`.
 
-## Implemented in `0.2.0rc1`
+## Implemented in `0.2.0rc2`
 
 - Exact subnet/engine version pin with a lightweight miner dependency boundary.
 - Installed `dolores-miner` and `dolores-validator` command surfaces.
@@ -13,7 +13,7 @@ HackerQuest miners on Bittensor public testnet netuid `523`.
 - Public IPv4 policy and exact metagraph publication read-back.
 - Core `parser_roundtrip` policy with miner author tests and a validator-private,
   secret-keyed holdout.
-- Packaged, auto-built `dolores-verifier-pytest:0.2.0rc1` with non-root,
+- Packaged, auto-built `dolores-verifier-pytest:0.2.0rc2` with non-root,
   networkless, read-only, resource-limited execution.
 - Serialized recurring ticks with automatic epoch IDs, atomic state, exclusive
   locking, crash recovery boundaries, metagraph discovery, and health output.

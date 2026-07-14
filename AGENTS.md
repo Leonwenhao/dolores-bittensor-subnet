@@ -22,12 +22,12 @@ Bittensor public testnet, netuid `523`. It is not a permissionless launch guide.
 
 ## 2. Release gate
 
-The release candidate is `0.2.0rc1` for both
+The release candidate is `0.2.0rc2` for both
 `dolores-bittensor-subnet` and `dolores-autocurricula`. The subnet pins the exact
 engine version.
 
 Do not improvise an install from a local path. Use only the immutable
-`v0.2.0-rc.1` GitHub Releases and the exact asset/checksum names in
+`v0.2.0-rc.2` GitHub Releases and the exact asset/checksum names in
 [`docs/hackerquest-miner-quickstart.md`](docs/hackerquest-miner-quickstart.md).
 If either release, its checksum sidecar, or the exact-hash handoff asset is
 missing, stop; preparation is not authorized from a branch archive or local
@@ -41,7 +41,7 @@ dolores-miner --help
 python -c "import importlib.metadata as m; print(m.version('dolores-autocurricula')); print(m.version('dolores-bittensor-subnet'))"
 ```
 
-Both versions must print `0.2.0rc1`. A miner install does not require Docker,
+Both versions must print `0.2.0rc2`. A miner install does not require Docker,
 DuckDB, Streamlit, Fireworks, a solver panel, or validator services.
 
 ## 3. Author one supported task
@@ -208,7 +208,7 @@ oversize responses before scoring.
 ## 9. Final evidence checklist
 
 - Public release URLs and SHA-256 hashes came from the approved quickstart.
-- Both installed versions are `0.2.0rc1`; no local engine path is configured.
+- Both installed versions are `0.2.0rc2`; no local engine path is configured.
 - `dolores-miner doctor` and `validate` pass.
 - The task is supported core `parser_roundtrip`; tests are called author tests.
 - The service uses a stable public IPv4 and fixed port.

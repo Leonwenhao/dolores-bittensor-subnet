@@ -19,7 +19,7 @@ cohort infrastructure. The validator is not advertising an axon. Therefore the
 subnet has valid historical chain receipts but is **stale/offline and not
 launch-live**.
 
-The `0.2.0rc1` endpoint policy now rejects private, loopback, link-local,
+The `0.2.0rc2` endpoint policy rejects private, loopback, link-local,
 reserved, and other non-global addresses for public publication. A cohort miner
 must publish a stable globally routable IPv4/port and pass exact metagraph
 read-back.
@@ -98,7 +98,7 @@ the current RC refuses them in its public publish path.
 
 ## What remains unproved
 
-- Immutable public `0.2.0rc1` engine and subnet release installation without a
+- Immutable public `0.2.0rc2` engine and subnet release installation without a
   local checkout or private artifact.
 - Private receipt and triage of the pending security report.
 - A non-first-party miner with a stable public IPv4/port and signed reachability.

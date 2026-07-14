@@ -13,26 +13,30 @@ The fixed scope is:
 - cohort: one to three known HackerQuest participants with operator support
 - supported task family: the exact `parser_roundtrip` subset accepted by the
   versioned validator-owned holdout policy
-- release candidates: engine and subnet `0.2.0rc1`
+- release candidates: engine and subnet `0.2.0rc2`
 
-Use `PASS`, `FAIL`, `PENDING-HUMAN`, or `N/A` for every row. A gate is `PASS`
-only when the evidence named in the row exists and was inspected. A missing or
-indirect artifact is `FAIL`, not an inferred pass. Record the exact command that
-was actually implemented and run; do not substitute proposed CLI syntax.
+Use `PASS`, `FAIL`, `PENDING-STOP`, `PENDING-HUMAN`, or `N/A` for every row.
+`PENDING-STOP` means the exact release object is frozen but its explicit
+publication stop has not been lifted. A gate is `PASS` only when the evidence
+named in the row exists and was inspected. A missing or indirect artifact is
+`FAIL`, not an inferred pass. Record the exact command that was actually
+implemented and run; do not substitute proposed CLI syntax.
 
 ## Release decision record
 
 | Field | Value |
 |---|---|
 | Review timestamp (UTC) | Finalized in the immutable external checklist after the reproducible build. |
-| Engine immutable source revision | Recorded in `dolores-bittensor-subnet-0.2.0rc1-release-manifest.md`. |
-| Engine wheel filename and SHA-256 | `dolores_autocurricula-0.2.0rc1-py3-none-any.whl`; exact SHA-256 in `dolores-autocurricula-0.2.0rc1-SHA256SUMS` and the external manifest. |
-| Subnet artifact source revision | Recorded in `dolores-bittensor-subnet-0.2.0rc1-release-manifest.md` after the final artifact build; tag creation remains `STOP-LEON`. |
-| Subnet wheel filename and SHA-256 | `dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl`; exact SHA-256 in `dolores-bittensor-subnet-0.2.0rc1-SHA256SUMS` and the external manifest. |
+| Engine immutable source revision | Recorded in `dolores-bittensor-subnet-0.2.0rc2-release-manifest.md`. |
+| Engine wheel filename and SHA-256 | `dolores_autocurricula-0.2.0rc2-py3-none-any.whl`; exact SHA-256 in `dolores-autocurricula-0.2.0rc2-SHA256SUMS` and the external manifest. |
+| Subnet artifact source revision | Recorded in `dolores-bittensor-subnet-0.2.0rc2-release-manifest.md` after the final artifact build; tag creation remains `STOP-RC2-PRIMARY-PUBLICATION`. |
+| Subnet wheel filename and SHA-256 | `dolores_bittensor_subnet-0.2.0rc2-py3-none-any.whl`; exact SHA-256 in `dolores-bittensor-subnet-0.2.0rc2-SHA256SUMS` and the external manifest. |
 | Verifier Dockerfile and image identity | Platform-scoped digests recorded in the external release manifest; an ARM64 image ID is not an AMD64 VPS identity. |
-| Local gate result | Re-run and finalized in the immutable external checklist `dolores-bittensor-subnet-0.2.0rc1-cohort-checklist.md`. |
+| Local gate result | Re-run and finalized in the immutable external checklist `dolores-bittensor-subnet-0.2.0rc2-cohort-checklist.md`. |
 | Security disclosure gate | `PENDING-HUMAN` |
 | Accepted-risk publication decision | `PENDING-HUMAN` while private report receipt and triage remain pending. |
+| Engine RC2 hosted CI and release | `PENDING-STOP` |
+| Subnet RC2 hosted CI and release | `PENDING-STOP` |
 | Public artifact gate | `PENDING-HUMAN` |
 | External cohort proof | `PENDING-HUMAN` |
 | Final outcome | `pre-publication source checklist`; never `cohort-ready` without external proof. |
@@ -41,15 +45,21 @@ The packaged checklist intentionally does not embed its own subnet source
 commit or final artifact digests. Those values are recorded after the immutable
 artifacts are built in these release assets:
 
-- `dolores-bittensor-subnet-0.2.0rc1-release-manifest.md`;
-- `dolores-bittensor-subnet-0.2.0rc1-SHA256SUMS`;
-- `dolores-bittensor-subnet-0.2.0rc1-provenance.json`;
-- `dolores-bittensor-subnet-0.2.0rc1-cohort-checklist.md`;
-- `hackerquest-handoff-0.2.0rc1.md`.
+- `dolores-bittensor-subnet-0.2.0rc2-release-manifest.md`;
+- `dolores-bittensor-subnet-0.2.0rc2-SHA256SUMS`;
+- `dolores-bittensor-subnet-0.2.0rc2-provenance.json`;
+- `dolores-bittensor-subnet-0.2.0rc2-cohort-checklist.md`;
+- `hackerquest-handoff-0.2.0rc2.md`.
 
 This avoids a self-referential source-distribution hash while preserving exact
 external provenance. The deterministic release base is
-`https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/v0.2.0-rc.1/`.
+`https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/v0.2.0-rc.2/`.
+
+The earlier RC1 diagnostic clean-VPS run is complete and torn down. Miner
+transport, signed cross-host probing, and miner systemd passed; the validator
+path failed. It is historical diagnostic evidence only, not an RC2 rehearsal
+receipt. RC2 has no external miner, new registration, axon publication, or
+live-weight action.
 
 ## 0. Invariants
 
@@ -72,7 +82,7 @@ participant, signing a chain action, or spending provider funds.
 
 | Status | Gate | Required evidence |
 |---|---|---|
-| PASS | The engine builds wheel and source distribution for `0.2.0rc1`. | Exact build command, exit code, filenames, and SHA-256 values. |
+| PASS | The engine builds wheel and source distribution for `0.2.0rc2`. | Exact build command, exit code, filenames, and SHA-256 values. |
 | PASS | Package contents exclude work databases, generated datasets, provider material, internal reports, local paths, caches, and credentials. | Complete wheel and sdist file listings plus targeted content scan. |
 | PASS | The base engine install contains the authoritative task schema, loading, canonical serialization, and stable hash without validator-only dependencies. | Clean base-only install and import/hash smoke output. |
 | PASS | Validator-only dependencies are isolated behind the pinned engine extra selected by ADR-001. | Built metadata and clean validator install. |
@@ -83,7 +93,7 @@ participant, signing a chain action, or spending provider funds.
 
 | Status | Gate | Required evidence |
 |---|---|---|
-| PASS | The subnet builds installable `0.2.0rc1` artifacts and pins the exact compatible engine release. | Built metadata, filenames, SHA-256 values, and dependency inspection. |
+| PASS | The subnet builds installable `0.2.0rc2` artifacts and pins the exact compatible engine release. | Built metadata, filenames, SHA-256 values, and dependency inspection. |
 | PASS | A fresh environment outside both source trees installs from the two local release artifacts. | Temporary-environment path, exact install command, and `pip check` result. |
 | PASS | The clean install works without `DOLORES_REPO`, editable installs, `PYTHONPATH`, adjacent checkouts, or source-tree current working directory. | Sanitized command transcript and imported module locations. |
 | PASS | Installed miner entry points expose the implemented doctor/init/validate/serve journey. | Installed command discovery and help output. Record only syntax that exists in the release candidate. |
@@ -162,7 +172,7 @@ These are local/configuration gates until publication is explicitly approved.
 | PASS | A private reporting channel exists. | Approved enablement followed by GitHub API read-back `{"enabled":true}` at `2026-07-12T19:32:08Z`. |
 | PENDING-HUMAN | The pending report referenced by public issue #4 has been received privately. | Private advisory identifier only; no finding details in this checklist. |
 | PENDING-HUMAN | Findings have been triaged against the release candidate. | Private triage record with owner and disposition. |
-| PENDING-HUMAN | Publishing handoff artifacts while receipt and triage remain pending has an explicit accepted-risk decision. | One `STOP-LEON` receipt naming exact release objects, unknown risk, and rollback/deprecation path. |
+| PENDING-HUMAN | Publishing handoff artifacts while receipt and triage remain pending has an explicit accepted-risk decision. | One `STOP-RC2-PRIMARY-PUBLICATION` receipt naming exact release objects, unknown risk, and rollback/deprecation path. |
 | PENDING-HUMAN | If a report arrives before publication, any affected-RC disposition and required regression evidence are complete. | Private advisory cross-reference plus public-safe test evidence; `N/A` only if no report has arrived at the decision time. |
 
 Until the remaining rows pass, use `PENDING-HUMAN`. Follow
@@ -177,8 +187,8 @@ Nothing in this section is authorized by completion of the local gates.
 
 ### Public artifacts
 
-`STOP-LEON` is required before creating the engine remote, pushing either
-repository, publishing release artifacts, or creating tag `v0.2.0-rc.1`.
+`STOP-RC2-PRIMARY-PUBLICATION` is required before pushing either final RC2 SHA,
+creating either `v0.2.0-rc.2` tag, or publishing primary release assets.
 
 Evidence required in the staged publication decision:
 

@@ -22,6 +22,7 @@ from dolores_subnet.config import (
     LOCALNET_ALT_NETWORK,
     LOCALNET_NETWORK,
     MAX_RESPONSE_BYTES,
+    MAX_SIGNED_REQUEST_TIMEOUT_SECONDS,
     Mode,
     SubnetConfig,
     parse_mode,
@@ -36,6 +37,20 @@ from dolores_subnet.epoch import (
 from dolores_subnet.gates import GateContext
 from dolores_subnet.packaging import loads_wire_json
 from dolores_subnet.validator_state import ValidatorStateStore
+
+
+def _signed_request_timeout(value: str) -> float:
+    try:
+        timeout = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("timeout must be a number") from exc
+    if not 0 < timeout <= MAX_SIGNED_REQUEST_TIMEOUT_SECONDS:
+        maximum = f"{MAX_SIGNED_REQUEST_TIMEOUT_SECONDS:g}"
+        raise argparse.ArgumentTypeError(
+            f"timeout must be greater than 0 and at most {maximum} seconds "
+            "(miner cohort policy)"
+        )
+    return timeout
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -61,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     probe_wire.add_argument("--wallet.name", dest="wallet_name", required=True)
     probe_wire.add_argument("--wallet.hotkey", dest="wallet_hotkey", required=True)
     probe_wire.add_argument("--epoch", type=int, default=0)
-    probe_wire.add_argument("--timeout", type=float, default=10.0)
+    probe_wire.add_argument("--timeout", type=_signed_request_timeout, default=10.0)
     probe_wire.set_defaults(handler=probe_wire_command)
 
     recover = subparsers.add_parser(
@@ -97,7 +112,11 @@ def _runtime_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--work", type=Path, required=True)
     parser.add_argument("--quota", type=int, default=DEFAULT_QUOTA)
     parser.add_argument("--miner-endpoints", default="")
-    parser.add_argument("--timeout", type=float, default=30.0)
+    parser.add_argument(
+        "--timeout",
+        type=_signed_request_timeout,
+        default=MAX_SIGNED_REQUEST_TIMEOUT_SECONDS,
+    )
     parser.add_argument("--wallet.name", dest="wallet_name", required=True)
     parser.add_argument("--wallet.hotkey", dest="wallet_hotkey", required=True)
     parser.add_argument("--network")
@@ -131,7 +150,7 @@ def _health_args(parser: argparse.ArgumentParser) -> None:
         default=True,
         help="require a signed quota-zero reachability probe (enabled by default)",
     )
-    parser.add_argument("--timeout", type=float, default=10.0)
+    parser.add_argument("--timeout", type=_signed_request_timeout, default=10.0)
 
 
 def main(argv: list[str] | None = None) -> int:

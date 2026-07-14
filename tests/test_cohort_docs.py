@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from dolores_subnet.config import MAX_SIGNED_REQUEST_TIMEOUT_SECONDS
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -26,7 +28,7 @@ def test_cohort_docs_name_authoritative_signed_endpoint_health() -> None:
 
 def test_packaged_checklist_uses_external_exact_release_assets() -> None:
     checklist = _text("docs/cohort-release-checklist.md")
-    manifest = _text("docs/release-manifest-0.2.0rc1.md")
+    manifest = _text("docs/release-manifest-0.2.0rc2.md")
     subnet_revision = next(
         line
         for line in checklist.splitlines()
@@ -39,13 +41,13 @@ def test_packaged_checklist_uses_external_exact_release_assets() -> None:
     )
 
     expected_assets = (
-        "dolores-autocurricula-0.2.0rc1-release-manifest.md",
-        "dolores-autocurricula-0.2.0rc1-SHA256SUMS",
-        "dolores-bittensor-subnet-0.2.0rc1-release-manifest.md",
-        "dolores-bittensor-subnet-0.2.0rc1-SHA256SUMS",
-        "dolores-bittensor-subnet-0.2.0rc1-provenance.json",
-        "dolores-bittensor-subnet-0.2.0rc1-cohort-checklist.md",
-        "hackerquest-handoff-0.2.0rc1.md",
+        "dolores-autocurricula-0.2.0rc2-release-manifest.md",
+        "dolores-autocurricula-0.2.0rc2-SHA256SUMS",
+        "dolores-bittensor-subnet-0.2.0rc2-release-manifest.md",
+        "dolores-bittensor-subnet-0.2.0rc2-SHA256SUMS",
+        "dolores-bittensor-subnet-0.2.0rc2-provenance.json",
+        "dolores-bittensor-subnet-0.2.0rc2-cohort-checklist.md",
+        "hackerquest-handoff-0.2.0rc2.md",
     )
     for asset in expected_assets:
         assert asset in checklist or asset in manifest
@@ -53,7 +55,7 @@ def test_packaged_checklist_uses_external_exact_release_assets() -> None:
     assert "external manifest" in subnet_wheel
     assert re.search(r"`[0-9a-f]{40}`", subnet_revision) is None
     assert re.search(r"`[0-9a-f]{64}`", subnet_wheel) is None
-    assert "releases/download/v0.2.0-rc.1/" in manifest
+    assert "releases/download/v0.2.0-rc.2/" in manifest
 
     stale_values = (
         "814d9bcc451a36db1b341c2ddd6f27d1aaed565b",
@@ -71,13 +73,48 @@ def test_packaged_checklist_uses_external_exact_release_assets() -> None:
         assert stale not in tracked_release_prose
 
 
+def test_rc2_manifest_freezes_engine_input_without_inventing_subnet_output() -> None:
+    manifest = _text("docs/release-manifest-0.2.0rc2.md")
+
+    for exact_engine_input in (
+        "7998603deac3b18d8c2ee5ef7f2756f6b1a38972",
+        "dolores_autocurricula-0.2.0rc2-py3-none-any.whl",
+        "`99934` bytes",
+        "8991fae7ad8ffce29391bd4c3bd48927a9a962e832104b019f28890799ff356c",
+        "dolores_autocurricula-0.2.0rc2.tar.gz",
+        "`111467` bytes",
+        "c9088a30e53a39e85c096968de1d1db1380c57009670ad7bce1e6661c4ca5475",
+        "4e860cc6717adf8b00af863a3fc2441d13fcc6369ae359b3644388258482d377",
+        "`1783968000`",
+        "sha256:908267dba8c87033821f2e4c89788fbf9e3ea8c3d2e7498094201ec2a399336a",
+    ):
+        assert exact_engine_input in manifest
+
+    assert "Engine RC2 hosted CI and release | `PENDING-STOP`" in manifest
+    assert (
+        "Subnet RC2 hosted CI, tag, release, and public asset verification "
+        "| `PENDING-STOP`"
+    ) in manifest
+    assert "Private report receipt | `PENDING-HUMAN`" in manifest
+    assert "Private report triage | `PENDING-HUMAN`" in manifest
+    assert "RC1 diagnostic clean-VPS rehearsal | `FAIL`" in manifest
+    assert (
+        "teardown/read-back completed; historical diagnostic only, not RC2 evidence"
+        in manifest
+    )
+    assert "RC2 external miner traction | None claimed" in manifest
+    assert "RC2 registration or axon publication | Not executed" in manifest
+    assert "RC2 live weights | Not executed" in manifest
+    assert "final subnet source identity" in manifest
+
+
 def test_security_docs_record_pending_truth_and_accepted_risk_decision() -> None:
     readme = _text("README.md")
     security = _text("SECURITY.md")
     contributing = _text("CONTRIBUTING.md")
     checklist = _text("docs/cohort-release-checklist.md")
     packet = _text("docs/security-disclosure-packet.md")
-    manifest = _text("docs/release-manifest-0.2.0rc1.md")
+    manifest = _text("docs/release-manifest-0.2.0rc2.md")
 
     assert '| PASS | A private reporting channel exists. |' in checklist
     assert '`{"enabled":true}` at `2026-07-12T19:32:08Z`' in checklist
@@ -111,23 +148,23 @@ def test_quickstart_uses_exact_immutable_public_asset_locations() -> None:
 
     assert (
         "https://github.com/Leonwenhao/dolores-autocurricula/"
-        "releases/download/v0.2.0-rc.1/"
+        "releases/download/v0.2.0-rc.2/"
     ) in quickstart
     assert (
         "https://github.com/Leonwenhao/dolores-bittensor-subnet/"
-        "releases/download/v0.2.0-rc.1/"
+        "releases/download/v0.2.0-rc.2/"
     ) in quickstart
     for asset in (
-        "dolores_autocurricula-0.2.0rc1-py3-none-any.whl",
-        "dolores-autocurricula-0.2.0rc1-release-manifest.md",
-        "dolores-autocurricula-0.2.0rc1-SHA256SUMS",
-        "dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl",
-        "dolores_bittensor_subnet-0.2.0rc1.tar.gz",
-        "dolores-bittensor-subnet-0.2.0rc1-release-manifest.md",
-        "dolores-bittensor-subnet-0.2.0rc1-SHA256SUMS",
-        "dolores-bittensor-subnet-0.2.0rc1-provenance.json",
-        "dolores-bittensor-subnet-0.2.0rc1-cohort-checklist.md",
-        "hackerquest-handoff-0.2.0rc1.md",
+        "dolores_autocurricula-0.2.0rc2-py3-none-any.whl",
+        "dolores-autocurricula-0.2.0rc2-release-manifest.md",
+        "dolores-autocurricula-0.2.0rc2-SHA256SUMS",
+        "dolores_bittensor_subnet-0.2.0rc2-py3-none-any.whl",
+        "dolores_bittensor_subnet-0.2.0rc2.tar.gz",
+        "dolores-bittensor-subnet-0.2.0rc2-release-manifest.md",
+        "dolores-bittensor-subnet-0.2.0rc2-SHA256SUMS",
+        "dolores-bittensor-subnet-0.2.0rc2-provenance.json",
+        "dolores-bittensor-subnet-0.2.0rc2-cohort-checklist.md",
+        "hackerquest-handoff-0.2.0rc2.md",
     ):
         assert asset in quickstart
 
@@ -167,11 +204,17 @@ def test_validator_install_uses_same_public_assets_and_validator_only_docker() -
     validator = _text("docs/validator-operations.md")
 
     assert "do not install it for the miner" in quickstart
-    assert "sudo apt-get install -y docker.io" in validator
+    assert "sudo apt-get install -y docker.io docker-buildx" in validator
+    assert "sudo docker buildx version" in validator
     assert "/opt/python/3.11.15/bin/python3.11" in validator
-    assert "file:///var/tmp/dolores-0.2.0rc1/" in validator
+    assert "file:///var/tmp/dolores-0.2.0rc2/" in validator
     assert "dolores-autocurricula[validator]" in validator
     assert "dolores-bittensor-subnet[validator]" in validator
+    assert "/usr/bin/env READ_ONLY=1 TMPDIR=/run/dolores-validator" in validator
+    assert "Do not define `READ_ONLY` or `TMPDIR` in this file" in validator
+    assert "ProtectHome=read-only" in validator
+    assert "--timeout 30" in validator
+    assert "DOLORES_VALIDATOR_TIMEOUT" not in validator
     assert "/absolute/path/to" not in validator
 
 
@@ -188,9 +231,9 @@ def test_validator_configuration_packet_is_sanitized_and_release_exact() -> None
         "https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/$TAG",
         "https://github.com/Leonwenhao/dolores-autocurricula/releases/tag/$TAG",
         "https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/tag/$TAG",
-        'export TAG="v0.2.0-rc.1"',
-        'export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc1"',
-        "hackerquest-handoff-0.2.0rc1.md",
+        'export TAG="v0.2.0-rc.2"',
+        'export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc2"',
+        "hackerquest-handoff-0.2.0rc2.md",
         "sha256sum --check --strict --ignore-missing",
         "Ubuntu `24.04 LTS` `amd64`",
         "CPython `3.11.15`",
@@ -201,11 +244,21 @@ def test_validator_configuration_packet_is_sanitized_and_release_exact() -> None
         "BT_WALLET_HOTKEY=<VALIDATOR_HOTKEY_NAME>",
         "/etc/systemd/system/dolores-validator.service",
         "/etc/systemd/system/dolores-validator.timer",
-        "dolores-verifier-pytest:0.2.0rc1",
+        "dolores-verifier-pytest:0.2.0rc2",
+        "VERIFIER_SOURCE_DATE_EPOCH=1783968000",
+        "docker buildx version",
+        "docker buildx build",
+        "--no-cache",
+        'rewrite-timestamp=true',
+        'docker load --input "$VERIFIER_ARCHIVE"',
         "--network test",
         "--netuid 523",
         "--chain dry-run",
         "--panel-mode mock",
+        "/usr/bin/env READ_ONLY=1 TMPDIR=/run/dolores-validator",
+        "'^(READ_ONLY|TMPDIR)='",
+        "ProtectHome=read-only",
+        "--timeout 30",
         "executed=true",
         "containerized=true",
         "Safe to share after review:",
@@ -222,6 +275,7 @@ def test_validator_configuration_packet_is_sanitized_and_release_exact() -> None
         "--miner-endpoints",
         "DOLORES_REPO=",
         "PYTHONPATH=",
+        "DOLORES_VALIDATOR_TIMEOUT",
     ):
         assert forbidden not in packet
 
@@ -249,6 +303,15 @@ def test_chain_neutral_vps_rehearsal_is_public_asset_only_and_bounded() -> None:
         "No `scp`",
         "no chain write is authorized",
         "never external-miner or cohort evidence",
+        "sudo apt-get install -y jq docker.io docker-buildx",
+        "sudo docker buildx version",
+        "/usr/bin/env READ_ONLY=1 TMPDIR=/run/dolores-validator",
+        "'^(READ_ONLY|TMPDIR)='",
+        "ProtectHome=read-only",
+        "--timeout 30",
+        "assert state['active_epoch_id'] == state['last_completed_epoch']",
+        "assert state['phase'] == 'committed'",
+        "assert state['next_epoch_id'] == state['last_completed_epoch'] + 1",
     ):
         assert required in rehearsal
 
@@ -267,8 +330,19 @@ def test_chain_neutral_vps_rehearsal_is_public_asset_only_and_bounded() -> None:
         "--allow-extrinsics",
         "--allow-provider-spend",
         "--allow-commit-reveal",
+        "DOLORES_VALIDATOR_TIMEOUT",
+        "assert state['active_epoch_id'] is None",
+        "assert state['phase'] is None",
     ):
         assert forbidden not in rehearsal
+
+
+def test_rehearsal_timeout_never_exceeds_miner_policy() -> None:
+    rehearsal = _text("docs/vps-rehearsal.md")
+    timeouts = [float(value) for value in re.findall(r"--timeout ([0-9.]+)", rehearsal)]
+
+    assert timeouts
+    assert max(timeouts) <= MAX_SIGNED_REQUEST_TIMEOUT_SECONDS
 
 
 def test_quickstart_contains_exact_unsigned_commands_and_expected_outputs() -> None:

@@ -1,16 +1,17 @@
 # RC Demo and Smoke Checks
 
-These checks exercise `0.2.0rc1` without registration, axon publication, live
+These checks exercise `0.2.0rc2` without registration, axon publication, live
 weights, paid inference, or participant contact.
 
 ## Prerequisites
 
 - Python 3.11
 - Docker daemon for validator checks
-- the pinned public engine `0.2.0rc1`
-- this subnet `0.2.0rc1`
+- the frozen engine input `0.2.0rc2`
+- this subnet `0.2.0rc2`
 
-The engine public artifact is still pending as of 2026-07-12. In a release
+The engine RC2 hosted CI and public release remain `PENDING-STOP`; the subnet
+RC2 hosted CI and public release remain `PENDING-STOP`. In a release
 environment, use only the immutable public URLs and hashes published in
 [`hackerquest-miner-quickstart.md`](hackerquest-miner-quickstart.md). Do not set
 a source-path override or install an adjacent/private engine checkout.
@@ -57,7 +58,7 @@ python -m pytest -q \
   tests/test_release_packaging.py
 ```
 
-The Docker runner auto-builds `dolores-verifier-pytest:0.2.0rc1` from the
+The Docker runner auto-builds `dolores-verifier-pytest:0.2.0rc2` from the
 resource packaged inside the installed engine. No engine source path or manual
 Dockerfile command is needed. The smoke covers valid signed transport, bad
 signatures, stale/replayed requests, response tampering, private holdout

@@ -7,7 +7,7 @@ into Bittensor weights.
 
 - Network: Bittensor public testnet
 - Netuid: `523`
-- Release candidate: subnet `0.2.0rc1`, pinned engine `0.2.0rc1`
+- Release candidate: subnet `0.2.0rc2`, pinned engine `0.2.0rc2`
 - Cohort: one to three known HackerQuest miners, not a permissionless launch
 - Canonical status: [`docs/testnet-status.md`](docs/testnet-status.md)
 
@@ -32,7 +32,7 @@ evidence and current readiness.
 Unsigned handoff preparation can begin only after immutable public artifacts
 exist. The exact install commands and immutable release/checksum locations live in
 [`docs/hackerquest-miner-quickstart.md`](docs/hackerquest-miner-quickstart.md).
-The subnet package already pins `dolores-autocurricula==0.2.0rc1`; miners never
+The subnet package already pins `dolores-autocurricula==0.2.0rc2`; miners never
 set a source-path override, install an adjacent checkout, or receive a private path.
 
 ## Cohort protocol
@@ -104,7 +104,7 @@ explicit manual endpoints with chain mode off. They exist for signed,
 first-party release rehearsals and are not testnet discovery or cohort evidence.
 
 The validator installs the `validator` extra, builds
-`dolores-verifier-pytest:0.2.0rc1` from a resource packaged inside the engine,
+`dolores-verifier-pytest:0.2.0rc2` from a resource packaged inside the engine,
 and runs it as a non-root user with no network, a read-only root and task mount,
 dropped capabilities, no-new-privileges, and CPU, memory, PID, and tmpfs limits.
 

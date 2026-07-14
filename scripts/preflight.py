@@ -73,10 +73,10 @@ def import_dolores_check() -> tuple[str, str]:
     try:
         dolores = importlib.import_module("dolores")
     except Exception as exc:  # noqa: BLE001
-        return result("FAIL", f"{exc}; install dolores-autocurricula[validator]==0.2.0rc1")
+        return result("FAIL", f"{exc}; install dolores-autocurricula[validator]==0.2.0rc2")
     version = getattr(dolores, "__version__", "unknown")
-    if version != "0.2.0rc1":
-        return result("FAIL", f"dolores {version}; expected pinned 0.2.0rc1")
+    if version != "0.2.0rc2":
+        return result("FAIL", f"dolores {version}; expected pinned 0.2.0rc2")
     return result("PASS", f"dolores {version}")
 
 

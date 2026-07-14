@@ -16,11 +16,12 @@ StateDirectory=dolores-validator
 StateDirectoryMode=0700
 RuntimeDirectory=dolores-validator
 RuntimeDirectoryMode=0700
-Environment=TMPDIR=/run/dolores-validator
+# EnvironmentFile values override Environment= settings. Force both runtime
+# invariants at each process boundary after all environment files are loaded.
 WorkingDirectory=/var/lib/dolores-validator
 
-ExecStart=/opt/dolores-validator/venv/bin/dolores-validator tick --mode testnet --work /var/lib/dolores-validator --quota ${DOLORES_VALIDATOR_QUOTA} --timeout ${DOLORES_VALIDATOR_TIMEOUT} --wallet.name ${BT_WALLET_NAME} --wallet.hotkey ${BT_WALLET_HOTKEY} --network test --netuid 523 --chain dry-run --panel-mode mock
-ExecStartPost=/opt/dolores-validator/venv/bin/dolores-validator health --mode testnet --work /var/lib/dolores-validator --wallet.name ${BT_WALLET_NAME} --wallet.hotkey ${BT_WALLET_HOTKEY} --network test --netuid 523
+ExecStart=/usr/bin/env READ_ONLY=1 TMPDIR=/run/dolores-validator /opt/dolores-validator/venv/bin/dolores-validator tick --mode testnet --work /var/lib/dolores-validator --quota ${DOLORES_VALIDATOR_QUOTA} --timeout 30 --wallet.name ${BT_WALLET_NAME} --wallet.hotkey ${BT_WALLET_HOTKEY} --network test --netuid 523 --chain dry-run --panel-mode mock
+ExecStartPost=/usr/bin/env READ_ONLY=1 TMPDIR=/run/dolores-validator /opt/dolores-validator/venv/bin/dolores-validator health --mode testnet --work /var/lib/dolores-validator --wallet.name ${BT_WALLET_NAME} --wallet.hotkey ${BT_WALLET_HOTKEY} --network test --netuid 523
 
 Restart=on-failure
 RestartSec=30s

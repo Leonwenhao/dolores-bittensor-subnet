@@ -1,7 +1,7 @@
 # Chain-neutral clean-VPS release rehearsal
 
 This is an operator-only rehearsal profile for one disposable Ubuntu 24.04 LTS
-AMD64 host. It validates the public `0.2.0rc1` release under real systemd,
+AMD64 host. It validates the public `0.2.0rc2` release under real systemd,
 Docker, `PrivateTmp`, restart, journal, state, replay, and cross-host network
 conditions without registering, publishing an axon, discovering a metagraph,
 setting weights, or making any other chain write.
@@ -12,7 +12,7 @@ participant miner does not need Docker, a holdout input, validator packages, or
 provider credentials. Manual endpoints and ephemeral first-party wallets are
 rehearsal evidence only; they are never external-miner or cohort evidence.
 
-Do not start this runbook without a separate exact VPS `STOP-LEON` approval
+Do not start this runbook without a separate exact `STOP-RC2-VPS` approval
 naming the provider resource, image ID, architecture, size, region, hourly and
 maximum cost, inbound rules, SSH method, sudo actions, wallet boundary,
 duration, evidence schema, and teardown. The approval must explicitly say no chain write is authorized.
@@ -36,7 +36,7 @@ nproc
 free -h
 df -h /
 dpkg-query -W -f='${binary:Package}\t${Version}\n' \
-  ca-certificates curl jq python3 docker.io 2>/dev/null || true
+  ca-certificates curl jq python3 docker.io docker-buildx 2>/dev/null || true
 systemctl list-unit-files 'dolores-*' --no-pager
 ```
 
@@ -46,15 +46,16 @@ resource identity. Stop on drift.
 
 Install the CPython 3.11.15 and base prerequisites exactly as documented in
 [`hackerquest-miner-quickstart.md`](hackerquest-miner-quickstart.md), section 1.
-The base apt list for this combined rehearsal additionally includes `jq` and
-`docker.io`:
+The base apt list for this combined rehearsal additionally includes `jq`,
+`docker.io`, and the separately packaged `docker-buildx` plugin:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y jq docker.io
+sudo apt-get install -y jq docker.io docker-buildx
 sudo systemctl enable --now docker.service
 /opt/python/3.11.15/bin/python3.11 --version
 sudo docker version
+sudo docker buildx version
 ```
 
 Expected interpreter output is exactly `Python 3.11.15`.
@@ -66,22 +67,22 @@ VPS packet into the public shell variables below. They are release metadata,
 not secrets. Do not substitute a chat value or a hash from this source file.
 
 ```bash
-export TAG='v0.2.0-rc.1'
+export TAG='v0.2.0-rc.2'
 export ENGINE_BASE="https://github.com/Leonwenhao/dolores-autocurricula/releases/download/$TAG"
 export SUBNET_BASE="https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/$TAG"
 export ENGINE_API="https://api.github.com/repos/Leonwenhao/dolores-autocurricula/releases/tags/$TAG"
 export SUBNET_API="https://api.github.com/repos/Leonwenhao/dolores-bittensor-subnet/releases/tags/$TAG"
-export DOWNLOAD_DIR='/var/tmp/dolores-0.2.0rc1'
+export DOWNLOAD_DIR='/var/tmp/dolores-0.2.0rc2'
 
-export ENGINE_WHEEL='dolores_autocurricula-0.2.0rc1-py3-none-any.whl'
-export ENGINE_SDIST='dolores_autocurricula-0.2.0rc1.tar.gz'
-export ENGINE_MANIFEST='dolores-autocurricula-0.2.0rc1-release-manifest.md'
-export ENGINE_SUMS='dolores-autocurricula-0.2.0rc1-SHA256SUMS'
-export SUBNET_WHEEL='dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl'
-export SUBNET_SDIST='dolores_bittensor_subnet-0.2.0rc1.tar.gz'
-export SUBNET_BUNDLE='dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz'
-export SUBNET_SUMS='dolores-bittensor-subnet-0.2.0rc1-SHA256SUMS'
-export SUBNET_PROVENANCE='dolores-bittensor-subnet-0.2.0rc1-provenance.json'
+export ENGINE_WHEEL='dolores_autocurricula-0.2.0rc2-py3-none-any.whl'
+export ENGINE_SDIST='dolores_autocurricula-0.2.0rc2.tar.gz'
+export ENGINE_MANIFEST='dolores-autocurricula-0.2.0rc2-release-manifest.md'
+export ENGINE_SUMS='dolores-autocurricula-0.2.0rc2-SHA256SUMS'
+export SUBNET_WHEEL='dolores_bittensor_subnet-0.2.0rc2-py3-none-any.whl'
+export SUBNET_SDIST='dolores_bittensor_subnet-0.2.0rc2.tar.gz'
+export SUBNET_BUNDLE='dolores-bittensor-subnet-0.2.0rc2-release-bundle.tar.gz'
+export SUBNET_SUMS='dolores-bittensor-subnet-0.2.0rc2-SHA256SUMS'
+export SUBNET_PROVENANCE='dolores-bittensor-subnet-0.2.0rc2-provenance.json'
 
 export APPROVED_ENGINE_SUMS_SHA256='<EXACT_PACKET_VALUE>'
 export APPROVED_ENGINE_MANIFEST_SHA256='<EXACT_PACKET_VALUE>'
@@ -165,9 +166,9 @@ sudo /opt/dolores-miner/venv/bin/python -m pip check
 sudo /opt/dolores-validator/venv/bin/python -m pip check
 
 cd "$DOWNLOAD_DIR"
-test ! -e dolores_bittensor_subnet-0.2.0rc1
+test ! -e dolores_bittensor_subnet-0.2.0rc2
 tar --extract --gzip --file "$SUBNET_SDIST"
-export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc1"
+export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc2"
 test -f "$RELEASE_SOURCE/docs/vps-rehearsal.md"
 ```
 
@@ -259,16 +260,37 @@ DOLORES_HOLDOUT_SECRET=<HUMAN_ENTERED_64_OR_MORE_LOWERCASE_HEX>
 BT_WALLET_NAME=<EPHEMERAL_VALIDATOR_WALLET_NAME>
 BT_WALLET_HOTKEY=<EPHEMERAL_VALIDATOR_HOTKEY_NAME>
 DOLORES_VALIDATOR_QUOTA=1
-DOLORES_VALIDATOR_TIMEOUT=60
 
 # /etc/dolores/rehearsal.env
 DOLORES_REHEARSAL_MINER_ENDPOINT=127.0.0.1:8091:<MINER_HOTKEY_SS58>:<MINER_COLDKEY_SS58>
 ```
 
 Confirm only ownership, mode, and field shape with non-outputting `grep --quiet`
-checks. Never use `cat`, `env`, shell tracing, `systemctl show` on environment
-properties, or evidence commands that reveal values. Do not define
+checks. Never use `cat`, a bare `env`/`printenv` dump, shell tracing,
+`systemctl show` on environment properties, or evidence commands that reveal
+values. Do not define
 `DOLORES_ALLOW_EXTRINSICS` or any live-extrinsic opt-in.
+
+```bash
+for file in /etc/dolores/validator.env /etc/dolores/rehearsal.env; do
+  if sudo grep --quiet --extended-regexp '^(READ_ONLY|TMPDIR)=' "$file"; then
+    echo "forbidden validator runtime override in $file" >&2
+    exit 1
+  fi
+done
+```
+
+The negative check is defense in depth: both validator systemd process commands
+force `/usr/bin/env READ_ONLY=1 TMPDIR=/run/dolores-validator` after their
+environment files are loaded, so the protected files cannot override either
+runtime invariant.
+
+The base validator unit and its rehearsal drop-in both fix signed request
+timeouts at `--timeout 30`, exactly matching the miner's maximum cohort-policy
+timeout. This is an immutable protocol boundary, not an operator environment
+field. The validator CLI rejects non-positive or larger values before wallet,
+network, or epoch work, preventing an oversized request from being committed as
+an all-zero unreachable epoch.
 
 ## 5. Unsigned task and registration preview
 
@@ -371,6 +393,16 @@ remains unchanged and never contains `--publish`.
 Install the unmodified base service/timer and the public chain-neutral service
 drop-in. Do not change the production timer cadence:
 
+The base validator service and rehearsal replacements begin every process with
+`/usr/bin/env READ_ONLY=1 TMPDIR=/run/dolores-validator`; they do not rely on
+weaker systemd `Environment=` settings that an `EnvironmentFile` can override.
+Pinned Bittensor `10.5.0` otherwise tries to create `~/.bittensor/wallets` and
+`~/.bittensor/miners` during import, which must fail under the clean-host
+`ProtectHome=read-only` boundary. This setting suppresses only that SDK
+bootstrap write and its default file-logging path: the existing wallet remains
+readable, Dolores state remains writable through the declared state/runtime
+directories, and `PrivateTmp` plus every chain-neutral gate remain unchanged.
+
 ```bash
 sudo install -m 0644 "$RELEASE_SOURCE/deploy/systemd/dolores-validator.service" \
   /etc/systemd/system/dolores-validator.service
@@ -426,6 +458,7 @@ sudo systemctl show dolores-validator.service --no-pager \
   --property=ExecMainStatus --property=NRestarts --property=User \
   --property=Group --property=PrivateTmp --property=RuntimeDirectory \
   --property=StateDirectory --property=ReadWritePaths \
+  --property=ProtectHome \
   --property=FragmentPath --property=DropInPaths
 sudo journalctl -u dolores-validator.service --no-pager -n 300
 sudo -H -u dolores-validator /opt/dolores-validator/venv/bin/python - <<'PY'
@@ -436,10 +469,13 @@ path = Path('/var/lib/dolores-validator/subnet_archive/validator_runtime/state.j
 state = json.loads(path.read_text(encoding='utf-8'))
 assert state['last_completed_epoch'] is not None
 assert state['last_completed_epoch'] >= 2
-assert state['next_epoch_id'] > state['last_completed_epoch']
-assert state['active_epoch_id'] is None
-assert state['phase'] is None
-print('validator_state=monotonic last_completed_epoch=' + str(state['last_completed_epoch']))
+assert state['next_epoch_id'] == state['last_completed_epoch'] + 1
+assert state['active_epoch_id'] == state['last_completed_epoch']
+assert state['phase'] == 'committed'
+print(
+    'validator_state=monotonic terminal_phase=committed last_completed_epoch='
+    + str(state['last_completed_epoch'])
+)
 PY
 sudo -H -u dolores-validator \
   /opt/dolores-validator/venv/bin/dolores-validator replay \
@@ -478,13 +514,18 @@ done
 
 Require two monotonic committed epochs, `chain_mode=fallback` with an offline
 reason, signed manual-wire reachability, `NRestarts=0`, and `REPLAY OK` twice.
+The durable terminal state intentionally retains
+`active_epoch_id=last_completed_epoch` with `phase=committed`; only
+`allocated`, `querying`, `evaluating`, and `weights_submitting` are in-progress
+phases. The next epoch ID must be exactly one greater than the committed epoch.
 The production timer must remain disabled and inactive after its first
 successful invocation; epoch 2 is the single controlled manual restart.
 The archived verification receipts must show the honest task was actually
 executed, containerized, and passed under the private holdout. A successful
 Docker-backed tick under `User=dolores-validator`, `PrivateTmp=true`,
-`TMPDIR=/run/dolores-validator`, and the explicit `/run/dolores-validator`
-write path is the real bind-mount/runtime proof; static unit parsing is not.
+`ProtectHome=read-only`, `READ_ONLY=1`, `TMPDIR=/run/dolores-validator`, and
+the explicit `/run/dolores-validator` write path is the real
+bind-mount/runtime proof; static unit parsing is not.
 
 ## 9. Remove the rehearsal profile and verify production bytes
 

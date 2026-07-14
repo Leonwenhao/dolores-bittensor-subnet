@@ -1,6 +1,6 @@
 [project]
 name = "dolores-bittensor-subnet"
-version = "0.2.0rc1"
+version = "0.2.0rc2"
 description = "Bittensor testnet subnet scaffold for Dolores Autocurricula task supply."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
@@ -9,17 +9,17 @@ dependencies = [
     "bittensor-cli==9.23.1",
     "async-substrate-interface==2.2.1",
     "websockets==16.0",
-    "dolores-autocurricula==0.2.0rc1",
+    "dolores-autocurricula==0.2.0rc2",
     "pydantic>=2.7",
     "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
 validator = [
-    "dolores-autocurricula[validator]==0.2.0rc1",
+    "dolores-autocurricula[validator]==0.2.0rc2",
 ]
 dev = [
-    "dolores-autocurricula[validator]==0.2.0rc1",
+    "dolores-autocurricula[validator]==0.2.0rc2",
     "pytest>=8",
     "ruff>=0.6",
 ]

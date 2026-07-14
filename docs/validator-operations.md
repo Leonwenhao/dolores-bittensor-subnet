@@ -25,19 +25,20 @@ Use a dedicated Ubuntu 24.04 LTS amd64 host and non-root `dolores-validator`
 account. Install CPython 3.11.15 from the exact source URL and SHA-256 in
 [`hackerquest-miner-quickstart.md`](hackerquest-miner-quickstart.md), producing
 `/opt/python/3.11.15/bin/python3.11`; do not replace Ubuntu's system Python.
-Ubuntu `docker.io` is installed only on this validator host. Membership in the
-Docker group permits control of the daemon and is security-sensitive; do not
-give this account interactive or unrelated workload access.
+Ubuntu `docker.io` and the separately packaged `docker-buildx` plugin are
+installed only on this validator host. Membership in the Docker group permits
+control of the daemon and is security-sensitive; do not give this account
+interactive or unrelated workload access.
 
-Download and verify the immutable engine/subnet `v0.2.0-rc.1` assets exactly as
+Download and verify the immutable engine/subnet `v0.2.0-rc.2` assets exactly as
 specified in quickstart section 2. The fixed download directory and filenames
 are:
 
 ```bash
-export DOWNLOAD_DIR="/var/tmp/dolores-0.2.0rc1"
-export ENGINE_WHEEL="dolores_autocurricula-0.2.0rc1-py3-none-any.whl"
-export SUBNET_WHEEL="dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl"
-export SUBNET_SDIST="dolores_bittensor_subnet-0.2.0rc1.tar.gz"
+export DOWNLOAD_DIR="/var/tmp/dolores-0.2.0rc2"
+export ENGINE_WHEEL="dolores_autocurricula-0.2.0rc2-py3-none-any.whl"
+export SUBNET_WHEEL="dolores_bittensor_subnet-0.2.0rc2-py3-none-any.whl"
+export SUBNET_SDIST="dolores_bittensor_subnet-0.2.0rc2.tar.gz"
 ```
 
 Do not continue unless the release-page handoff digest, both checksum sidecars,
@@ -46,9 +47,10 @@ in a root-owned virtual environment:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y docker.io
+sudo apt-get install -y docker.io docker-buildx
 sudo systemctl enable --now docker.service
 sudo docker version
+sudo docker buildx version
 getent passwd dolores-validator >/dev/null || \
   sudo useradd --system --create-home --home-dir /home/dolores-validator \
     --shell /usr/sbin/nologin dolores-validator
@@ -58,8 +60,8 @@ sudo install -d -m 0755 -o root -g root /opt/dolores-validator
 sudo /opt/python/3.11.15/bin/python3.11 -m venv /opt/dolores-validator/venv
 sudo /opt/dolores-validator/venv/bin/python -m pip install --upgrade pip
 sudo /opt/dolores-validator/venv/bin/python -m pip install \
-  'dolores-autocurricula[validator] @ file:///var/tmp/dolores-0.2.0rc1/dolores_autocurricula-0.2.0rc1-py3-none-any.whl' \
-  'dolores-bittensor-subnet[validator] @ file:///var/tmp/dolores-0.2.0rc1/dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl'
+  'dolores-autocurricula[validator] @ file:///var/tmp/dolores-0.2.0rc2/dolores_autocurricula-0.2.0rc2-py3-none-any.whl' \
+  'dolores-bittensor-subnet[validator] @ file:///var/tmp/dolores-0.2.0rc2/dolores_bittensor_subnet-0.2.0rc2-py3-none-any.whl'
 sudo /opt/dolores-validator/venv/bin/python -m pip check
 ```
 
@@ -75,9 +77,9 @@ release source:
 
 ```bash
 cd "$DOWNLOAD_DIR"
-test ! -e dolores_bittensor_subnet-0.2.0rc1
+test ! -e dolores_bittensor_subnet-0.2.0rc2
 tar --extract --gzip --file "$SUBNET_SDIST"
-export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc1"
+export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc2"
 test -f "$RELEASE_SOURCE/deploy/systemd/dolores-validator.service"
 test -f "$RELEASE_SOURCE/deploy/systemd/dolores-validator.timer"
 ```
@@ -115,9 +117,14 @@ verification. The file must define these variable names with local values:
 - `BT_WALLET_NAME`
 - `BT_WALLET_HOTKEY`
 - `DOLORES_VALIDATOR_QUOTA` — integer from 1 through 4
-- `DOLORES_VALIDATOR_TIMEOUT`
 
-The units reference the file but contain no environment values.
+Do not define `READ_ONLY` or `TMPDIR` in this file. Every systemd
+`ExecStart`/`ExecStartPost` command begins with
+`/usr/bin/env READ_ONLY=1 TMPDIR=/run/dolores-validator` after all environment
+files are loaded, so an environment-file value cannot override either runtime
+invariant. The unit also fixes signed request timeouts at `--timeout 30`, the
+miner's maximum cohort-policy timeout, and the validator CLI rejects
+non-positive or larger values before any wallet, network, or epoch work.
 
 ## 3. Read-only health before any tick
 
@@ -202,6 +209,18 @@ The service is `Type=oneshot`, invokes `tick` with explicit
 `--network test --netuid 523`, discovers miners from the metagraph, selects
 `--chain dry-run --panel-mode mock`, and uses no manual endpoint. The application
 lock remains authoritative if a human and timer race.
+
+The immutable validator unit does not rely on a systemd `Environment=` setting,
+because `EnvironmentFile` values would override it. Both process commands force
+`READ_ONLY=1` and `TMPDIR=/run/dolores-validator` through `/usr/bin/env`
+immediately before Python starts. Pinned Bittensor `10.5.0` otherwise tries to create
+`~/.bittensor/wallets` and `~/.bittensor/miners` during import, which a clean
+host correctly rejects under `ProtectHome=read-only`. The setting suppresses
+those import-time directory writes and Bittensor's default file-logging path;
+it does not alter wallet selectors, block reads of the pre-provisioned wallet,
+make Dolores state read-only, weaken `PrivateTmp`, or authorize a chain write.
+Durable Dolores state and temporary Docker bind material remain confined to
+the unit's `StateDirectory` and `RuntimeDirectory`.
 
 Inspect each run:
 

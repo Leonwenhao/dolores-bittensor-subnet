@@ -22,8 +22,8 @@ from scripts.build_release_bundle import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.2.0rc1"
-SOURCE_DATE_EPOCH = 1_783_869_698
+VERSION = "0.2.0rc2"
+SOURCE_DATE_EPOCH = 1_783_969_800
 ENGINE_COMMIT = "1" * 40
 SUBNET_COMMIT = "2" * 40
 ENGINE_NAME = f"dolores_autocurricula-{VERSION}-py3-none-any.whl"
@@ -41,7 +41,7 @@ def _write_wheel(path: Path, *, distribution: str, module: str) -> None:
     dist_info = distribution.replace("-", "_")
     metadata = (f"Metadata-Version: 2.4\nName: {distribution}\nVersion: {VERSION}\n\n").encode()
     with zipfile.ZipFile(path, mode="w", compression=zipfile.ZIP_STORED) as archive:
-        _zip_file(archive, f"{module}/__init__.py", b"__version__ = '0.2.0rc1'\n")
+        _zip_file(archive, f"{module}/__init__.py", b"__version__ = '0.2.0rc2'\n")
         _zip_file(archive, f"{dist_info}-{VERSION}.dist-info/METADATA", metadata)
 
 
@@ -60,7 +60,7 @@ def _write_sdist(path: Path, *, add_symlink: bool = False) -> None:
         with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as archive:
             for name, data in (
                 (f"{root}/PKG-INFO", metadata),
-                (f"{root}/src/dolores_subnet/__init__.py", b"__version__ = '0.2.0rc1'\n"),
+                (f"{root}/src/dolores_subnet/__init__.py", b"__version__ = '0.2.0rc2'\n"),
             ):
                 info = tarfile.TarInfo(name)
                 info.mode = 0o644
@@ -364,13 +364,13 @@ def test_ci_uses_fixed_epoch_builder_and_independent_verification() -> None:
     )
     assert parsed["env"]["SOURCE_DATE_EPOCH"] == str(SOURCE_DATE_EPOCH)
     assert parsed["env"]["ENGINE_SOURCE_COMMIT"] == (
-        "a832cfac214b946490dc4feeda40e2e4dd94e241"
+        "7998603deac3b18d8c2ee5ef7f2756f6b1a38972"
     )
     run = assembly["run"]
     assert 'for copy in a b; do' in run
     assert "scripts/build_release_bundle.py build" in run
     assert "scripts/build_release_bundle.py verify" in run
-    assert "cmp /tmp/dolores-bittensor-subnet-0.2.0rc1-release-bundle-a.tar.gz" in run
+    assert "cmp /tmp/dolores-bittensor-subnet-0.2.0rc2-release-bundle-a.tar.gz" in run
     assert '--source-date-epoch "$SOURCE_DATE_EPOCH"' in run
     assert "SHA256SUMS" in run
     assert "provenance.json" in run

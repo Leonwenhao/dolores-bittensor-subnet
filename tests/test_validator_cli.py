@@ -13,6 +13,7 @@ from dolores_subnet.config import (
     DEFAULT_QUOTA,
     LOCALNET_ALT_NETWORK,
     LOCALNET_NETWORK,
+    MAX_SIGNED_REQUEST_TIMEOUT_SECONDS,
     Mode,
 )
 from dolores_subnet.epoch import EpochResult, write_epoch_completion_marker
@@ -32,11 +33,53 @@ def test_tick_defaults_are_dry_and_auto_numbered() -> None:
     )
 
     assert args.quota == DEFAULT_QUOTA
+    assert args.timeout == MAX_SIGNED_REQUEST_TIMEOUT_SECONDS
     assert args.chain == "dry-run"
     assert not hasattr(args, "epoch")
     assert args.allow_extrinsics is False
     assert args.allow_commit_reveal is False
     assert args.confirm_live == ""
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        [
+            "tick",
+            "--work",
+            "/tmp/work",
+            "--wallet.name",
+            "wallet",
+            "--wallet.hotkey",
+            "validator",
+        ],
+        [
+            "health",
+            "--work",
+            "/tmp/work",
+            "--wallet.name",
+            "wallet",
+            "--wallet.hotkey",
+            "validator",
+        ],
+        [
+            "probe-wire",
+            "--miner-endpoints",
+            "127.0.0.1:8091:hotkey",
+            "--wallet.name",
+            "wallet",
+            "--wallet.hotkey",
+            "validator",
+        ],
+    ],
+)
+def test_validator_rejects_timeout_above_miner_policy(argv, capsys) -> None:  # noqa: ANN001
+    with pytest.raises(SystemExit):
+        validator_cli.build_parser().parse_args(
+            [*argv, "--timeout", str(MAX_SIGNED_REQUEST_TIMEOUT_SECONDS + 0.1)]
+        )
+
+    assert "at most 30 seconds (miner cohort policy)" in capsys.readouterr().err
 
 
 def test_testnet_tick_requires_explicit_fixed_target(capsys) -> None:

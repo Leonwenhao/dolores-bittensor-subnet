@@ -7,7 +7,7 @@ and operational evidence.
 ## Code contributions
 
 - Use Python 3.11.
-- Keep subnet and engine release candidates aligned at `0.2.0rc1`.
+- Keep subnet and engine release candidates aligned at `0.2.0rc2`.
 - After the pinned engine release is public, install this checkout with
   `python -m pip install -e ".[dev]"`; do not wire it to an adjacent/private
   engine path.
@@ -22,7 +22,7 @@ and operational evidence.
 - Keep generated or external task execution Docker-only and fail closed; never
   fall back to host execution.
 
-The validator Docker image is `dolores-verifier-pytest:0.2.0rc1`. Its Dockerfile
+The validator Docker image is `dolores-verifier-pytest:0.2.0rc2`. Its Dockerfile
 is a packaged engine resource, and its runtime must remain non-root, networkless,
 read-only, capability-free, and resource-limited.
 

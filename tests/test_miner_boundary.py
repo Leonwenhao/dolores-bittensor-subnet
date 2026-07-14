@@ -6,6 +6,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from dolores_subnet.config import MAX_SIGNED_REQUEST_TIMEOUT_SECONDS
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -14,16 +16,22 @@ def test_subnet_metadata_pins_engine_and_sdk_with_validator_extra() -> None:
         "project"
     ]
 
-    assert project["version"] == "0.2.0rc1"
+    assert project["version"] == "0.2.0rc2"
     assert "bittensor==10.5.0" in project["dependencies"]
     assert "bittensor-cli==9.23.1" in project["dependencies"]
     assert "async-substrate-interface==2.2.1" in project["dependencies"]
     assert "websockets==16.0" in project["dependencies"]
-    assert "dolores-autocurricula==0.2.0rc1" in project["dependencies"]
+    assert "dolores-autocurricula==0.2.0rc2" in project["dependencies"]
     assert project["optional-dependencies"]["validator"] == [
-        "dolores-autocurricula[validator]==0.2.0rc1"
+        "dolores-autocurricula[validator]==0.2.0rc2"
     ]
     assert project["scripts"]["dolores-miner"] == "dolores_subnet.miner_cli:main"
+
+
+def test_miner_request_timeout_uses_shared_signed_request_policy() -> None:
+    from dolores_subnet import miner_cli
+
+    assert miner_cli.MAX_REQUEST_TIMEOUT_SECONDS == MAX_SIGNED_REQUEST_TIMEOUT_SECONDS
 
 
 def test_miner_cli_import_does_not_load_validator_only_dependencies() -> None:

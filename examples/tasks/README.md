@@ -45,7 +45,7 @@ and hash claims before expensive work.
 
 ## Author-side validation
 
-After installing the immutable public `0.2.0rc1` releases, validate the known
+After installing the immutable public `0.2.0rc2` releases, validate the known
 supported example without Docker or chain access:
 
 ```bash
@@ -80,7 +80,7 @@ The operator subsequently performs:
 
 1. authenticated request and miner-signed response verification;
 2. safety and reference/author-test execution in the hardened
-   `dolores-verifier-pytest:0.2.0rc1` image;
+   `dolores-verifier-pytest:0.2.0rc2` image;
 3. known-wrong probes;
 4. the secret-keyed validator-private holdout;
 5. archive deduplication and scoring.

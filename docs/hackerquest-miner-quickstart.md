@@ -2,21 +2,21 @@
 
 This is the zero-context Ubuntu VPS path for one known HackerQuest engineer to
 prepare a Dolores miner from immutable public artifacts. It is fixed to
-`network=test`, `netuid=523`, engine `0.2.0rc1`, subnet `0.2.0rc1`, and tag
-`v0.2.0-rc.1`. It is not a permissionless, production, or mainnet launch guide.
+`network=test`, `netuid=523`, engine `0.2.0rc2`, subnet `0.2.0rc2`, and tag
+`v0.2.0-rc.2`. It is not a permissionless, production, or mainnet launch guide.
 
 The two immutable release pages are:
 
-- engine: `https://github.com/Leonwenhao/dolores-autocurricula/releases/tag/v0.2.0-rc.1`;
-- subnet: `https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/tag/v0.2.0-rc.1`.
+- engine: `https://github.com/Leonwenhao/dolores-autocurricula/releases/tag/v0.2.0-rc.2`;
+- subnet: `https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/tag/v0.2.0-rc.2`.
 
 Their immutable asset bases are:
 
-- `https://github.com/Leonwenhao/dolores-autocurricula/releases/download/v0.2.0-rc.1/`;
-- `https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/v0.2.0-rc.1/`.
+- `https://github.com/Leonwenhao/dolores-autocurricula/releases/download/v0.2.0-rc.2/`;
+- `https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/v0.2.0-rc.2/`.
 
 If either page, the exact tag, the checksum sidecars, or
-`hackerquest-handoff-0.2.0rc1.md` is missing, stop. Never substitute a local
+`hackerquest-handoff-0.2.0rc2.md` is missing, stop. Never substitute a local
 wheel, branch archive, editable checkout, private attachment, mutable `latest`
 URL, `DOLORES_REPO`, or `PYTHONPATH` override.
 
@@ -90,29 +90,29 @@ Python 3.11.15
 
 Any other interpreter version is unsupported for this release.
 
-## 2. Download and verify the immutable RC1 assets
+## 2. Download and verify the immutable RC2 assets
 
 Run this as the VPS administrator, not as root and not inside a checkout:
 
 ```bash
-export TAG="v0.2.0-rc.1"
+export TAG="v0.2.0-rc.2"
 export ENGINE_BASE="https://github.com/Leonwenhao/dolores-autocurricula/releases/download/$TAG"
 export SUBNET_BASE="https://github.com/Leonwenhao/dolores-bittensor-subnet/releases/download/$TAG"
-export DOWNLOAD_DIR="/var/tmp/dolores-0.2.0rc1"
+export DOWNLOAD_DIR="/var/tmp/dolores-0.2.0rc2"
 
-export ENGINE_WHEEL="dolores_autocurricula-0.2.0rc1-py3-none-any.whl"
-export ENGINE_SDIST="dolores_autocurricula-0.2.0rc1.tar.gz"
-export ENGINE_MANIFEST="dolores-autocurricula-0.2.0rc1-release-manifest.md"
-export ENGINE_SUMS="dolores-autocurricula-0.2.0rc1-SHA256SUMS"
+export ENGINE_WHEEL="dolores_autocurricula-0.2.0rc2-py3-none-any.whl"
+export ENGINE_SDIST="dolores_autocurricula-0.2.0rc2.tar.gz"
+export ENGINE_MANIFEST="dolores-autocurricula-0.2.0rc2-release-manifest.md"
+export ENGINE_SUMS="dolores-autocurricula-0.2.0rc2-SHA256SUMS"
 
-export SUBNET_WHEEL="dolores_bittensor_subnet-0.2.0rc1-py3-none-any.whl"
-export SUBNET_SDIST="dolores_bittensor_subnet-0.2.0rc1.tar.gz"
-export SUBNET_BUNDLE="dolores-bittensor-subnet-0.2.0rc1-release-bundle.tar.gz"
-export SUBNET_MANIFEST="dolores-bittensor-subnet-0.2.0rc1-release-manifest.md"
-export SUBNET_SUMS="dolores-bittensor-subnet-0.2.0rc1-SHA256SUMS"
-export SUBNET_PROVENANCE="dolores-bittensor-subnet-0.2.0rc1-provenance.json"
-export SUBNET_CHECKLIST="dolores-bittensor-subnet-0.2.0rc1-cohort-checklist.md"
-export HANDOFF="hackerquest-handoff-0.2.0rc1.md"
+export SUBNET_WHEEL="dolores_bittensor_subnet-0.2.0rc2-py3-none-any.whl"
+export SUBNET_SDIST="dolores_bittensor_subnet-0.2.0rc2.tar.gz"
+export SUBNET_BUNDLE="dolores-bittensor-subnet-0.2.0rc2-release-bundle.tar.gz"
+export SUBNET_MANIFEST="dolores-bittensor-subnet-0.2.0rc2-release-manifest.md"
+export SUBNET_SUMS="dolores-bittensor-subnet-0.2.0rc2-SHA256SUMS"
+export SUBNET_PROVENANCE="dolores-bittensor-subnet-0.2.0rc2-provenance.json"
+export SUBNET_CHECKLIST="dolores-bittensor-subnet-0.2.0rc2-cohort-checklist.md"
+export HANDOFF="hackerquest-handoff-0.2.0rc2.md"
 
 install -d -m 0755 "$DOWNLOAD_DIR"
 cd "$DOWNLOAD_DIR"
@@ -131,7 +131,7 @@ done
 ```
 
 Open the immutable subnet release page above. Compare the release page's
-`sha256:` digest for `hackerquest-handoff-0.2.0rc1.md` with:
+`sha256:` digest for `hackerquest-handoff-0.2.0rc2.md` with:
 
 ```bash
 cd "$DOWNLOAD_DIR"
@@ -171,9 +171,9 @@ systemd unit and public runbooks:
 
 ```bash
 cd "$DOWNLOAD_DIR"
-test ! -e dolores_bittensor_subnet-0.2.0rc1
+test ! -e dolores_bittensor_subnet-0.2.0rc2
 tar --extract --gzip --file "$SUBNET_SDIST"
-export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc1"
+export RELEASE_SOURCE="$DOWNLOAD_DIR/dolores_bittensor_subnet-0.2.0rc2"
 test -f "$RELEASE_SOURCE/deploy/systemd/dolores-miner.service"
 ```
 
@@ -203,8 +203,8 @@ from pathlib import Path
 import dolores
 import dolores_subnet
 
-assert metadata.version("dolores-autocurricula") == "0.2.0rc1"
-assert metadata.version("dolores-bittensor-subnet") == "0.2.0rc1"
+assert metadata.version("dolores-autocurricula") == "0.2.0rc2"
+assert metadata.version("dolores-bittensor-subnet") == "0.2.0rc2"
 assert Path(dolores.__file__).resolve().is_relative_to(Path("/opt/dolores-miner/venv"))
 assert Path(dolores_subnet.__file__).resolve().is_relative_to(
     Path("/opt/dolores-miner/venv")
@@ -220,7 +220,7 @@ PY
 Expected results:
 
 - `pip check` prints `No broken requirements found.`;
-- both versions print `0.2.0rc1` from `/opt/dolores-miner/venv`;
+- both versions print `0.2.0rc2` from `/opt/dolores-miner/venv`;
 - `btcli` reports `9.23.1`;
 - the final line is `miner_dependency_boundary=ok`.
 
@@ -610,7 +610,7 @@ Never share:
 
 ## 12. Ready-to-send HackerQuest message
 
-> We have prepared Dolores Autocurricula `0.2.0rc1` for one controlled Bittensor
+> We have prepared Dolores Autocurricula `0.2.0rc2` for one controlled Bittensor
 > public-testnet setup on `network=test`, `netuid=523`. Would you be willing to
 > attempt the unsigned preparation from the immutable GitHub Release assets and
 > report where the guide is unclear? The supported machine is a fresh Ubuntu

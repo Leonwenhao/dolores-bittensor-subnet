@@ -5,6 +5,7 @@ import pytest
 from dolores_subnet.config import (
     EMA_ALPHA,
     MAX_PACKAGE_BYTES,
+    MAX_SIGNED_REQUEST_TIMEOUT_SECONDS,
     SPEC_VERSION,
     Mode,
     NetworkSafetyError,
@@ -74,4 +75,5 @@ def test_commit_reveal_opt_in_loads_only_from_explicit_arg(monkeypatch) -> None:
 def test_plan_constants_are_single_source_values() -> None:
     assert SPEC_VERSION > 0
     assert MAX_PACKAGE_BYTES == 200 * 1024
+    assert MAX_SIGNED_REQUEST_TIMEOUT_SECONDS == 30.0
     assert EMA_ALPHA == pytest.approx(0.3)

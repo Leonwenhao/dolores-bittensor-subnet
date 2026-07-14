@@ -1,15 +1,15 @@
 # Architecture
 
-Dolores `0.2.0rc1` is a controlled-cohort protocol for authenticated,
+Dolores `0.2.0rc2` is a controlled-cohort protocol for authenticated,
 verifiable task supply on Bittensor public testnet netuid `523`.
 
 ## Release boundary
 
 The subnet depends on one authoritative engine distribution:
 
-- miner base: `dolores-autocurricula==0.2.0rc1`
-- validator extra: `dolores-autocurricula[validator]==0.2.0rc1`
-- subnet: `dolores-bittensor-subnet==0.2.0rc1`
+- miner base: `dolores-autocurricula==0.2.0rc2`
+- validator extra: `dolores-autocurricula[validator]==0.2.0rc2`
+- subnet: `dolores-bittensor-subnet==0.2.0rc2`
 
 The lightweight engine base owns task schema, canonical serialization, stable
 hashing, loading, and deterministic task generation. Validator-only DuckDB,
@@ -79,7 +79,7 @@ are never described as public cohort evidence.
 
 ## Isolated verification
 
-The validator uses `dolores-verifier-pytest:0.2.0rc1`. The Dockerfile ships as
+The validator uses `dolores-verifier-pytest:0.2.0rc2`. The Dockerfile ships as
 an engine package resource, so image construction works from an installed wheel.
 Execution is fail-closed and uses:
 

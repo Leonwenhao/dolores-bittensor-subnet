@@ -29,8 +29,8 @@ manually injected endpoint.
 
 | Artifact | Version | Immutable revision | Artifact filename or image reference | SHA-256 or immutable digest | Verified at (UTC) |
 |---|---|---|---|---|---|
-| Dolores engine | `0.2.0rc1` | | | | |
-| Dolores subnet | `0.2.0rc1` | | | | |
+| Dolores engine | `0.2.0rc2` | | | | |
+| Dolores subnet | `0.2.0rc2` | | | | |
 | Verifier image | | | | | |
 
 ## External miner public identity

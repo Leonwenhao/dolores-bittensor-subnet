@@ -24,14 +24,14 @@ def _write_archive(
     second_root: bool = False,
 ) -> None:
     entries = [
-        ("package-0.2.0rc1", None, 0o755),
-        ("package-0.2.0rc1/PKG-INFO", b"Name: package\nVersion: 0.2.0rc1\n", 0o644),
-        ("package-0.2.0rc1/scripts/run.py", b"#!/usr/bin/env python3\n", 0o755),
+        ("package-0.2.0rc2", None, 0o755),
+        ("package-0.2.0rc2/PKG-INFO", b"Name: package\nVersion: 0.2.0rc2\n", 0o644),
+        ("package-0.2.0rc2/scripts/run.py", b"#!/usr/bin/env python3\n", 0o755),
     ]
     if unsafe_name is not None:
         entries.append((unsafe_name, b"unsafe\n", 0o644))
     if duplicate:
-        entries.append(("package-0.2.0rc1/PKG-INFO", b"duplicate\n", 0o644))
+        entries.append(("package-0.2.0rc2/PKG-INFO", b"duplicate\n", 0o644))
     if second_root:
         entries.append(("other-package/PKG-INFO", b"Name: other-package\n", 0o644))
     if reverse:
@@ -60,7 +60,7 @@ def _write_archive(
                     info.size = len(data)
                     archive.addfile(info, io.BytesIO(data))
             if link:
-                info = tarfile.TarInfo("package-0.2.0rc1/unsafe-link")
+                info = tarfile.TarInfo("package-0.2.0rc2/unsafe-link")
                 info.type = tarfile.SYMTYPE
                 info.linkname = "PKG-INFO"
                 archive.addfile(info)
@@ -101,9 +101,9 @@ def test_normalization_is_byte_identical_across_input_metadata_and_order(tmp_pat
         "../escape",
         "/absolute",
         "root\\windows",
-        "package-0.2.0rc1/a//b",
-        "package-0.2.0rc1/a/./b",
-        "package-0.2.0rc1/control\nname",
+        "package-0.2.0rc2/a//b",
+        "package-0.2.0rc2/a/./b",
+        "package-0.2.0rc2/control\nname",
     ],
 )
 def test_normalization_rejects_unsafe_paths(tmp_path: Path, unsafe_name: str) -> None:

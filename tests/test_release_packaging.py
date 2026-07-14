@@ -14,13 +14,13 @@ import yaml
 from dolores_subnet import __version__
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-RC_VERSION = "0.2.0rc1"
+RC_VERSION = "0.2.0rc2"
 GOLDEN_PARSER_HASH = "fbf1ca8f3b9cad51370332bb1329d03b16306d4828bed9674e1a3d2a2f80a249"
-ENGINE_SOURCE_COMMIT = "a832cfac214b946490dc4feeda40e2e4dd94e241"
-ENGINE_WHEEL_SHA256 = "015f5f9cd047a4c2feabf7760ccb9d3f8ebf72aef65f658154b18ca80b72aeb1"
-ENGINE_SDIST_SHA256 = "1acd013f76220e5d0c6cfbe63cf075940f03a7f2f0ece83e05837a2cccf29704"
-SUBNET_WHEEL_SHA256 = "ee94ac8d350a549a62018f39fa18280e8b64ec6af090d1e6a010cb3ba7206b29"
-SUBNET_SDIST_SHA256 = "dd64892fbcf1b6354e320aa0908668f5d8f618ae984f89ffae94fb015bd25fa2"
+ENGINE_SOURCE_COMMIT = "7998603deac3b18d8c2ee5ef7f2756f6b1a38972"
+ENGINE_WHEEL_SIZE = "99934"
+ENGINE_SDIST_SIZE = "111467"
+ENGINE_WHEEL_SHA256 = "8991fae7ad8ffce29391bd4c3bd48927a9a962e832104b019f28890799ff356c"
+ENGINE_SDIST_SHA256 = "c9088a30e53a39e85c096968de1d1db1380c57009670ad7bce1e6661c4ca5475"
 
 
 def test_release_metadata_pins_engine_sdk_and_installed_commands() -> None:
@@ -35,7 +35,7 @@ def test_release_metadata_pins_engine_sdk_and_installed_commands() -> None:
         "bittensor-cli==9.23.1",
         "async-substrate-interface==2.2.1",
         "websockets==16.0",
-        "dolores-autocurricula==0.2.0rc1",
+        "dolores-autocurricula==0.2.0rc2",
         "pydantic>=2.7",
         "PyYAML>=6.0",
     ]
@@ -105,7 +105,7 @@ def test_clean_wheel_contains_both_cli_entrypoints(tmp_path) -> None:
         metadata = Parser().parsestr(archive.read(metadata_name).decode("utf-8"))
         assert metadata["Version"] == RC_VERSION
         requirements = metadata.get_all("Requires-Dist", [])
-        assert any(item.startswith("dolores-autocurricula==0.2.0rc1") for item in requirements)
+        assert any(item.startswith("dolores-autocurricula==0.2.0rc2") for item in requirements)
         assert "dolores_subnet/miner_cli.py" in names
         assert "dolores_subnet/validator_cli.py" in names
         assert "dolores_subnet/_assets/configs/solver_panel.mock.yaml" in names
@@ -199,15 +199,18 @@ def test_ci_builds_and_smokes_checkout_independent_release_artifacts() -> None:
 
     release_job = workflow_text.split("  release-artifacts:\n", maxsplit=1)[1]
     assert f"ENGINE_SOURCE_COMMIT: {ENGINE_SOURCE_COMMIT}" in workflow_text
+    assert f'ENGINE_WHEEL_SIZE: "{ENGINE_WHEEL_SIZE}"' in workflow_text
+    assert f'ENGINE_SDIST_SIZE: "{ENGINE_SDIST_SIZE}"' in workflow_text
     assert f"ENGINE_WHEEL_SHA256: {ENGINE_WHEEL_SHA256}" in workflow_text
     assert f"ENGINE_SDIST_SHA256: {ENGINE_SDIST_SHA256}" in workflow_text
-    assert f"SUBNET_WHEEL_SHA256: {SUBNET_WHEEL_SHA256}" in workflow_text
-    assert f"SUBNET_SDIST_SHA256: {SUBNET_SDIST_SHA256}" in workflow_text
+    assert "SUBNET_WHEEL_SHA256" not in workflow_text
+    assert "SUBNET_SDIST_SHA256" not in workflow_text
     assert f"GOLDEN_PARSER_HASH: {GOLDEN_PARSER_HASH}" in workflow_text
     assert 'PYTHON_VERSION: "3.11.15"' in workflow_text
     assert 'BUILD_VERSION: "1.5.1"' in workflow_text
     assert 'SETUPTOOLS_VERSION: "83.0.0"' in workflow_text
     assert 'WHEEL_VERSION: "0.47.0"' in workflow_text
+    assert 'SOURCE_DATE_EPOCH: "1783969800"' in workflow_text
     assert (
         "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4"
         in workflow_text
@@ -222,9 +225,8 @@ def test_ci_builds_and_smokes_checkout_independent_release_artifacts() -> None:
     assert release_job.count("cmp /tmp/subnet-dist-a/") == 2
     assert 'python "$source_dir/scripts/normalize_sdist.py" \\' in release_job
     assert '--epoch "$SOURCE_DATE_EPOCH" \\' in release_job
-    assert '"$dist_dir/dolores_bittensor_subnet-0.2.0rc1.tar.gz"' in release_job
-    assert 'echo "$SUBNET_WHEEL_SHA256  $SUBNET_WHEEL" | sha256sum --check --strict' in release_job
-    assert 'echo "$SUBNET_SDIST_SHA256  $SUBNET_SDIST" | sha256sum --check --strict' in release_job
+    assert '"$dist_dir/dolores_bittensor_subnet-0.2.0rc2.tar.gz"' in release_job
+    assert 'sha256sum "$SUBNET_WHEEL" "$SUBNET_SDIST"' in release_job
     assert "tar --extract --gzip --file \"$SUBNET_SDIST\"" in release_job
     assert "cd /tmp" in release_job
     assert "/tmp/miner-venv" in release_job

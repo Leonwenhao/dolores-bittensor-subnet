@@ -42,13 +42,13 @@ successful testnet publication, and exact metagraph read-back. Private,
 loopback, link-local, multicast, unspecified, and reserved addresses are local
 rehearsal only and cannot enter the public publish path.
 
-The release-candidate version is `0.2.0rc1` for both distributions. The subnet
-pins `dolores-autocurricula==0.2.0rc1`; a clean two-wheel install is the local
+The release-candidate version is `0.2.0rc2` for both distributions. The subnet
+pins `dolores-autocurricula==0.2.0rc2`; a clean two-wheel install is the local
 release gate. It also pins the installed-SDK graph's tested
 `async-substrate-interface==2.2.1` and `websockets==16.0` pair so a fresh pip
 resolver does not backtrack across incompatible or temporarily unavailable
 transitive candidates. Publishing the engine repository/artifacts, creating the
-remote, pushing commits, and creating tag `v0.2.0-rc.1` remain explicit human
+remote, pushing commits, and creating tag `v0.2.0-rc.2` remain explicit human
 gates.
 
 ## Dependency alternatives considered

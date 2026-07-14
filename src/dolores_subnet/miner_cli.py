@@ -19,7 +19,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Tuple  # noqa: UP035 - Bittensor 10.5 signature uses typing.Tuple.
 
-from dolores_subnet.config import MAX_RESPONSE_BYTES
+from dolores_subnet.config import (
+    MAX_RESPONSE_BYTES,
+    MAX_SIGNED_REQUEST_TIMEOUT_SECONDS,
+)
 from dolores_subnet.endpoints import (
     COHORT_NETUID,
     COHORT_NETWORK,
@@ -37,15 +40,15 @@ DOCTOR_ATTEMPTS_MAX = 12
 DOCTOR_RETRY_DELAY_MAX_SECONDS = 30.0
 DOCTOR_SMOKE_SEED = 0
 EXPECTED_DISTRIBUTIONS = {
-    "dolores-autocurricula": "0.2.0rc1",
-    "dolores-bittensor-subnet": "0.2.0rc1",
+    "dolores-autocurricula": "0.2.0rc2",
+    "dolores-bittensor-subnet": "0.2.0rc2",
     "bittensor": "10.5.0",
     "bittensor-cli": "9.23.1",
 }
 MAX_REQUEST_BODY_BYTES = 64 * 1024
 MAX_REQUEST_AGE_NS = 30_000_000_000
 MAX_REQUEST_FUTURE_SKEW_NS = 5_000_000_000
-MAX_REQUEST_TIMEOUT_SECONDS = 30.0
+MAX_REQUEST_TIMEOUT_SECONDS = MAX_SIGNED_REQUEST_TIMEOUT_SECONDS
 HTTP_RATE_BURST = 20
 HTTP_RATE_PER_SECOND = 1.0
 AUTH_RATE_BURST = 6

@@ -96,12 +96,17 @@ def run_pre_gates(
     if count >= context.quota:
         return _fail(gates, "quota", "invalid:quota", f"{miner_hotkey} quota {context.quota}")
     gates["quota"] = True
+    # Charge quota as soon as the quota gate passes, before the dedup check, so a
+    # submission that later fails epoch_duplicate still consumes the miner's budget.
+    # Otherwise duplicate (or trivially mutated) packages never decrement quota,
+    # giving a miner unlimited cheap resubmissions per epoch — a validator
+    # amplification vector and a hash-probing oracle for the seen-set.
+    context.miner_counts[miner_hotkey] = count + 1
 
     if task_hash in context.seen_hashes:
         return _fail(gates, "epoch_duplicate", "invalid:epoch_duplicate", task_hash)
     gates["epoch_duplicate"] = True
 
-    context.miner_counts[miner_hotkey] = count + 1
     context.seen_hashes.add(task_hash)
     return GateDecision(True, gates, task=task, task_hash=task_hash)
 

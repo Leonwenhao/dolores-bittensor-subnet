@@ -337,6 +337,6 @@ or any live-extrinsic authorization value.
 
 Final truth: this packet is operator-ready configuration prose, not a completed
 VPS receipt. Engine and subnet RC2 hosted CI/releases remain `PENDING-STOP`;
-public-asset validator installation, hosted AMD64 image identity, real systemd
-behavior, and the clean RC2 VPS rehearsal remain `PENDING-HUMAN` until their
-exact external evidence exists.
+public-asset validator installation and hosted AMD64 image identity remain
+`PENDING-HUMAN`; real systemd behavior and the clean RC2 VPS rehearsal remain
+`PENDING-HUMAN` until their exact external evidence exists.
